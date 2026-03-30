@@ -78,11 +78,11 @@ static struct {
 // Core Assertion Implementation
 static inline void _cest_print_value(cest_value_t v) {
     switch(v.type) {
-        case CEST_TYPE_INT: printf("%lld", v.as.i); break;
-        case CEST_TYPE_DOUBLE: printf("%g", v.as.d); break;
-        case CEST_TYPE_STR: printf("\"%s\"", v.as.s); break;
-        case CEST_TYPE_PTR: printf("%p", v.as.p); break;
-        case CEST_TYPE_BOOL: printf("%s", v.as.b ? "true" : "false"); break;
+        case CEST_TYPE_INT: printf("(%s: %lld)", "int", v.as.i); break;
+        case CEST_TYPE_DOUBLE: printf("(%s: %g)", "double", v.as.d); break;
+        case CEST_TYPE_STR: printf("(%s: \"%s\")", "string", v.as.s); break;
+        case CEST_TYPE_PTR: printf("(%s: %p)", "pointer", v.as.p); break;
+        case CEST_TYPE_BOOL: printf("(%s: %s)", "bool", v.as.b ? "true" : "false"); break;
     }
 }
 
@@ -92,9 +92,9 @@ static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match,
         _cest_global_stats.passed++;
     } else {
         printf("  \033[31m✕ %s failed\033[0m\n", _cest_ctx.actual_expr);
-        printf("    \033[30;1mExpected %s: %s\033[0m\n", match_name, expected_expr);
-        printf("    \033[31mReceived: "); _cest_print_value(_cest_ctx.actual); printf("\033[0m\n");
-        printf("    \033[30;1mat %s:%d\033[0m\n", _cest_ctx.file, _cest_ctx.line);
+        printf("    \033[32mExpected %s: %s\033[0m\n", match_name, expected_expr);
+        printf("    \033[31mReceived "); _cest_print_value(_cest_ctx.actual); printf("\033[0m\n");
+        printf("    \033[90m(%s:%d)\033[0m\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
 }
@@ -142,35 +142,36 @@ typedef struct {
     void (*_toBeCloseTo)(double val, double precision);
 } _cest_bridge_t;
 
-static inline void b_toEqual(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_eq, "toEqual", ee); }
-static inline void b_toBeGreaterThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_gt, "toBeGreaterThan", ee); }
-static inline void b_toBeLessThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_lt, "toBeLessThan", ee); }
-static inline void b_toContain(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_contain, "toContain", ee); }
-static inline void b_toBeNull(void) { _cest_assert_impl(cest_ptr(NULL), match_eq, "toBeNull", "NULL"); }
+static inline void b_toEqual(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_eq, "to equal", ee); }
+static inline void b_toBeGreaterThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_gt, "to be greater than", ee); }
+static inline void b_toBeLessThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_lt, "to be less than", ee); }
+static inline void b_toContain(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_contain, "to contain", ee); }
+static inline void b_toBeNull(void) { _cest_assert_impl(cest_ptr(NULL), match_eq, "to be null", "NULL"); }
 static inline void b_toBeTruthy(void) { 
     bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && _cest_ctx.actual.as.b) || 
               (_cest_ctx.actual.type == CEST_TYPE_INT && _cest_ctx.actual.as.i != 0) ||
               (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) > 0);
-    if (ok) { printf("  \033[32m✓\033[0m %s is truthy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
-    else { printf("  \033[31m✕ %s is falsy but expected truthy\033[0m\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
+    if (ok) { printf("  \033[32m✓\033[0m %s to be truthy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
+    else { printf("  \033[31m✕ %s to be falsy but expected truthy\033[0m\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
 }
 static inline void b_toBeFalsy(void) {
     bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && !_cest_ctx.actual.as.b) || 
               (_cest_ctx.actual.type == CEST_TYPE_INT && _cest_ctx.actual.as.i == 0) ||
               (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) == 0) ||
               (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p == NULL);
-    if (ok) { printf("  \033[32m✓\033[0m %s is falsy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
-    else { printf("  \033[31m✕ %s is truthy but expected falsy\033[0m\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
+    if (ok) { printf("  \033[32m✓\033[0m %s to be falsy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
+    else { printf("  \033[31m✕ %s to be truthy but expected falsy\033[0m\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
 }
 static inline void b_toBeCloseTo(double val, double precision) {
     double diff = _CEST_ABS(_cest_ctx.actual.as.d - val);
     if (diff < precision) {
-        printf("  \033[32m✓\033[0m %s toBeCloseTo %g (precision %g)\n", _cest_ctx.actual_expr, val, precision);
+        printf("  \033[32m✓\033[0m %s to be close to %g (precision %g)\n", _cest_ctx.actual_expr, val, precision);
         _cest_global_stats.passed++;
     } else {
-        printf("  \033[31m✕ %s failed toBeCloseTo\033[0m\n", _cest_ctx.actual_expr);
-        printf("    \033[30;1mExpected close to: %g (precision %g)\033[0m\n", val, precision);
-        printf("    \033[31mReceived: %g (diff %g)\033[0m\n", _cest_ctx.actual.as.d, diff);
+        printf("  \033[31m✕ %s to be close to\033[0m\n", _cest_ctx.actual_expr);
+        printf("    \033[32mExpected to be close to: %g (precision %g)\033[0m\n", val, precision);
+        printf("    \033[31mReceived (double: %g) (diff %g)\033[0m\n", _cest_ctx.actual.as.d, diff);
+        printf("    \033[90m(%s:%d)\033[0m\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
 }
