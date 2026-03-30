@@ -5,6 +5,10 @@
 #include <string.h>
 #include <stdbool.h>
 
+#ifdef __OBJC__
+#include <objc/objc.h>
+#endif
+
 // Portability macro for weak symbols (shared across multiple .c files)
 #ifndef CEST_WEAK
 #  if defined(_MSC_VER)
@@ -24,6 +28,9 @@ typedef enum {
     CEST_TYPE_STR,
     CEST_TYPE_PTR,
     CEST_TYPE_BOOL
+#ifdef __OBJC__
+    , CEST_TYPE_OBJC_ID
+#endif
 } cest_type_t;
 
 typedef struct {
@@ -34,6 +41,9 @@ typedef struct {
         const char *s;
         const void *p;
         bool b;
+#ifdef __OBJC__
+        id obj;
+#endif
     } as;
 } cest_value_t;
 
@@ -48,12 +58,32 @@ typedef struct {
 CEST_WEAK cest_stats_t _cest_global_stats = {0, 0};
 
 // Value Wrappers
-static inline cest_value_t cest_int(long long v) { return (cest_value_t){.type = CEST_TYPE_INT, .as.i = v}; }
-static inline cest_value_t cest_double(double v) { return (cest_value_t){.type = CEST_TYPE_DOUBLE, .as.d = v}; }
-static inline cest_value_t cest_str(const char* v) { return (cest_value_t){.type = CEST_TYPE_STR, .as.s = v ? v : "NULL"}; }
-static inline cest_value_t cest_ptr(const void* v) { return (cest_value_t){.type = CEST_TYPE_PTR, .as.p = v}; }
-static inline cest_value_t cest_bool(bool v) { return (cest_value_t){.type = CEST_TYPE_BOOL, .as.b = v}; }
+static inline cest_value_t cest_int(long long v) { cest_value_t cv; cv.type = CEST_TYPE_INT; cv.as.i = v; return cv; }
+static inline cest_value_t cest_double(double v) { cest_value_t cv; cv.type = CEST_TYPE_DOUBLE; cv.as.d = v; return cv; }
+static inline cest_value_t cest_str(const char* v) { cest_value_t cv; cv.type = CEST_TYPE_STR; cv.as.s = v ? v : "NULL"; return cv; }
+static inline cest_value_t cest_ptr(const void* v) { cest_value_t cv; cv.type = CEST_TYPE_PTR; cv.as.p = v; return cv; }
+static inline cest_value_t cest_bool(bool v) { cest_value_t cv; cv.type = CEST_TYPE_BOOL; cv.as.b = v; return cv; }
+#ifdef __OBJC__
+static inline cest_value_t cest_id(id v) { cest_value_t cv; cv.type = CEST_TYPE_OBJC_ID; cv.as.obj = v; return cv; }
+#endif
 
+#ifdef __cplusplus
+#include <string>
+static inline cest_value_t cest_value(bool v) { return cest_bool(v); }
+static inline cest_value_t cest_value(int v) { return cest_int(v); }
+static inline cest_value_t cest_value(long v) { return cest_int(v); }
+static inline cest_value_t cest_value(long long v) { return cest_int(v); }
+static inline cest_value_t cest_value(float v) { return cest_double(v); }
+static inline cest_value_t cest_value(double v) { return cest_double(v); }
+static inline cest_value_t cest_value(char* v) { return cest_str(v); }
+static inline cest_value_t cest_value(const char* v) { return cest_str(v); }
+static inline cest_value_t cest_value(const std::string& v) { return cest_str(v.c_str()); }
+#ifdef __OBJC__
+static inline cest_value_t cest_value(id v) { return cest_id(v); }
+#endif
+template<typename T>
+static inline cest_value_t cest_value(T* v) { return cest_ptr((const void*)v); }
+#else
 #define cest_value(x) \
     _Generic((x), \
         _Bool: cest_bool, \
@@ -64,8 +94,16 @@ static inline cest_value_t cest_bool(bool v) { return (cest_value_t){.type = CES
         double: cest_double, \
         char*: cest_str, \
         const char*: cest_str, \
+        _CEST_OBJC_GENERIC(x) \
         default: cest_ptr \
     )(x)
+
+#ifdef __OBJC__
+#  define _CEST_OBJC_GENERIC(x) id: cest_id,
+#else
+#  define _CEST_OBJC_GENERIC(x)
+#endif
+#endif
 
 // Internal Context (Can be static as it's used per-expectation)
 static struct {
@@ -83,6 +121,9 @@ static inline void _cest_print_value(cest_value_t v) {
         case CEST_TYPE_STR: printf("(%s: \"%s\")", "string", v.as.s); break;
         case CEST_TYPE_PTR: printf("(%s: %p)", "pointer", v.as.p); break;
         case CEST_TYPE_BOOL: printf("(%s: %s)", "bool", v.as.b ? "true" : "false"); break;
+#ifdef __OBJC__
+        case CEST_TYPE_OBJC_ID: printf("(%s: %p)", "id", (void*)v.as.obj); break;
+#endif
     }
 }
 
@@ -101,13 +142,32 @@ static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match,
 
 // Matcher Logic
 static inline int match_eq(cest_value_t a, cest_value_t b) {
-    if (a.type != b.type) return 0;
+    if (a.type != b.type) {
+#ifdef __OBJC__
+        if ((a.type == CEST_TYPE_PTR && b.type == CEST_TYPE_OBJC_ID) ||
+            (a.type == CEST_TYPE_OBJC_ID && b.type == CEST_TYPE_PTR)) {
+            const void *p = a.type == CEST_TYPE_PTR ? a.as.p : b.as.p;
+            id obj = a.type == CEST_TYPE_OBJC_ID ? a.as.obj : b.as.obj;
+            return p == (const void*)obj;
+        }
+        if ((a.type == CEST_TYPE_PTR || a.type == CEST_TYPE_OBJC_ID) && 
+            (b.type == CEST_TYPE_PTR || b.type == CEST_TYPE_OBJC_ID)) {
+            const void *p1 = a.type == CEST_TYPE_PTR ? a.as.p : (const void*)a.as.obj;
+            const void *p2 = b.type == CEST_TYPE_PTR ? b.as.p : (const void*)b.as.obj;
+            return p1 == p2;
+        }
+#endif
+        return 0;
+    }
     switch (a.type) {
         case CEST_TYPE_INT: return a.as.i == b.as.i;
         case CEST_TYPE_DOUBLE: return _CEST_ABS(a.as.d - b.as.d) < 0.000001;
         case CEST_TYPE_STR: return strcmp(a.as.s, b.as.s) == 0;
         case CEST_TYPE_PTR: return a.as.p == b.as.p;
         case CEST_TYPE_BOOL: return a.as.b == b.as.b;
+#ifdef __OBJC__
+        case CEST_TYPE_OBJC_ID: return a.as.obj == b.as.obj;
+#endif
         default: return 0;
     }
 }
@@ -150,7 +210,12 @@ static inline void b_toBeNull(void) { _cest_assert_impl(cest_ptr(NULL), match_eq
 static inline void b_toBeTruthy(void) { 
     bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && _cest_ctx.actual.as.b) || 
               (_cest_ctx.actual.type == CEST_TYPE_INT && _cest_ctx.actual.as.i != 0) ||
-              (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) > 0);
+              (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) > 0) ||
+              (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p != NULL)
+#ifdef __OBJC__
+              || (_cest_ctx.actual.type == CEST_TYPE_OBJC_ID && _cest_ctx.actual.as.obj != nil)
+#endif
+              ;
     if (ok) { printf("  \033[32m✓\033[0m %s to be truthy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
     else { printf("  \033[31m✕ %s to be falsy but expected truthy\033[0m\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
 }
@@ -158,7 +223,11 @@ static inline void b_toBeFalsy(void) {
     bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && !_cest_ctx.actual.as.b) || 
               (_cest_ctx.actual.type == CEST_TYPE_INT && _cest_ctx.actual.as.i == 0) ||
               (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) == 0) ||
-              (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p == NULL);
+              (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p == NULL)
+#ifdef __OBJC__
+              || (_cest_ctx.actual.type == CEST_TYPE_OBJC_ID && _cest_ctx.actual.as.obj == nil)
+#endif
+              ;
     if (ok) { printf("  \033[32m✓\033[0m %s to be falsy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
     else { printf("  \033[31m✕ %s to be truthy but expected falsy\033[0m\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
 }

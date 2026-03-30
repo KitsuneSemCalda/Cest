@@ -1,29 +1,21 @@
 # Cest (English)
 
-**Cest** is a minimalist unit testing framework for C, inspired by Jest (JavaScript) and Gest (Go). It supports C, C++, Objective-C, and Objective-C++ in a single header.
+**Minimalist C Unit Testing Framework inspired by Jest and Gest.**
+
+Cest is a lightweight, **header-only** testing framework for C and related languages. It brings the expressive syntax of modern JavaScript and Go testing tools to C-family languages.
 
 ## Supported Languages
 
 | Language | Extension | Compiler | Full Support |
-|----------|-----------|----------|--------------|
-| **C** | `.c` | `gcc` | Yes |
-| **C++** | `.cpp` | `g++` | Yes |
-| **Objective-C** | `.m` | `clang` or `gcc -x objective-c` | Yes |
-| **Objective-C++** | `.mm` | `clang++` or `g++ -x objective-c++` | Yes |
-
-## Key Features
-
-- **Header-Only**: Just include `cest.h` in your project.
-- **Multi-Language**: Native support for C, C++, Objective-C, and Objective-C++.
-- **Fluent API**: Intuitive syntax like `expect(a).toEqual(b)`.
-- **Type-Safe**: Uses `_Generic` (C11) or function overloading (C++) to automatically handle multiple types.
-- **Colorized Output**: Immediate visual feedback in the terminal.
-- **Zero Dependencies**: No external libraries needed (not even `-lm`).
-- **Multi-file Support**: Compile multiple `.c` test files and Cest will unify results.
+|----------|-----------|----------|:------------:|
+| **C** | `.c` | `gcc`, `clang` | Yes |
+| **C++** | `.cpp` | `g++`, `clang++` | Yes |
+| **Objective-C** | `.m` | `clang -x objective-c` | Yes |
+| **Objective-C++** | `.mm` | `clang++ -x objective-c++` | Yes |
 
 ## Installation
 
-Copy `cest.h` to your project and compile:
+Copy `cest.h` to your project:
 
 ```bash
 # C
@@ -42,34 +34,20 @@ clang++ -x objective-c++ -o tests tests.mm -lobjc
 Or use the Makefile:
 
 ```bash
-make              # Build all examples
+make              # Build all examples to build/
 make run          # Build and run all examples
-make objc-deps    # Install ObjC dependencies (libobjc-dev)
-```
-
-## Installing ObjC Dependencies
-
-To use Objective-C or Objective-C++, install the runtime library:
-
-```bash
-# Ubuntu/Debian
-sudo apt install libobjc-dev
-
-# Fedora/RHEL
-sudo dnf install libobjc
-
-# macOS
-# Comes with Xcode/Developer Tools
+make clean        # Remove build directory
+make objc-deps   # Check/install ObjC dependencies
 ```
 
 ## Available Matchers
 
 | Matcher | Description |
-| :--- | :--- |
+|:---|:---|
 | `toBe(x)` / `toEqual(x)` | Checks value equality or identity. |
 | `toBeTruthy()` | Checks if the value is "truthy". |
 | `toBeFalsy()` | Checks if the value is "falsy" or null. |
-| `toBeNull()` | Checks if a pointer is `NULL`. |
+| `toBeNull()` | Checks if a pointer is `NULL` or `nil`. |
 | `toBeGreaterThan(x)` | Checks if the value is greater than `x`. |
 | `toBeLessThan(x)` | Checks if the value is less than `x`. |
 | `toContain(substring)` | Checks if a string contains a sub-string. |
@@ -105,15 +83,10 @@ int main() {
 #include <string>
 
 int main() {
-    describe("C++ Tests", {
+    describe("Strings", {
         it("supports std::string", {
             std::string s = "hello world";
             expect(s).toEqual("hello world");
-        });
-
-        it("works with pointers", {
-            int x = 42;
-            expect(&x).toBeTruthy();
         });
     });
 
@@ -127,15 +100,15 @@ int main() {
 #import "cest.h"
 
 int main() {
-    describe("Objective-C Tests", {
-        it("works with NSString", {
-            NSString *s = @"hello";
-            expect(s).toEqual(@"hello");
-        });
-
-        it("works with id type", {
+    describe("Objective-C", {
+        it("works with id", {
             id obj = (id)0x1234;
             expect(obj).toBeTruthy();
+        });
+
+        it("works with nil", {
+            id nil_obj = nil;
+            expect(nil_obj).toBeNull();
         });
     });
 
@@ -150,7 +123,7 @@ int main() {
 #import <string>
 
 int main() {
-    describe("ObjC++ Tests", {
+    describe("ObjC++", {
         it("supports std::string", {
             std::string s = "c++ string";
             expect(s).toEqual("c++ string");
@@ -174,8 +147,6 @@ int main() {
 
 ## Multi-file Projects
 
-For larger projects, you can split your tests into multiple files:
-
 ```c
 // math_tests.c
 #include "cest.h"
@@ -197,8 +168,11 @@ int main() {
 }
 ```
 
-Compilation:
 ```bash
 gcc -o test_suite main.c math_tests.c
 ./test_suite
 ```
+
+## License
+
+This project is licensed under the [BSD-3 Clause License](LICENSE).

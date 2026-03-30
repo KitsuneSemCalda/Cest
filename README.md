@@ -1,15 +1,30 @@
 # Cest
 
-**Minimalist C Unit Testing Engine inspired by Jest and Gest.**
+**Minimalist C Unit Testing Framework inspired by Jest and Gest.**
 
 [![License](https://img.shields.io/badge/license-BSD3-blue.svg)](LICENSE)
 [![Header Only](https://img.shields.io/badge/header--only-C11-orange.svg)](cest.h)
+[![C++](https://img.shields.io/badge/C++-11-orange.svg)]()
+[![Objective-C](https://img.shields.io/badge/ObjC-Supported-green.svg)]()
 
-Cest is a lightweight, **header-only** testing framework for C that brings the expressive syntax of modern JavaScript and Go testing tools to the C language. It's designed for simplicity, ease of use, and immediate feedback.
+Cest is a lightweight, **header-only** testing framework for C and related languages. It brings the expressive syntax of modern JavaScript and Go testing tools to C-family languages.
+
+---
+
+## Supported Languages
+
+| Language | Extension | Compiler | Full Support |
+|----------|-----------|----------|:------------:|
+| **C** | `.c` | `gcc`, `clang` | Yes |
+| **C++** | `.cpp` | `g++`, `clang++` | Yes |
+| **Objective-C** | `.m` | `clang -x objective-c` | Yes |
+| **Objective-C++** | `.mm` | `clang++ -x objective-c++` | Yes |
 
 ---
 
 ## Quick Start
+
+### C
 
 ```c
 #include "cest.h"
@@ -25,21 +40,92 @@ int main() {
 }
 ```
 
-Compile and run:
 ```bash
-gcc -o test_suite test_suite.c
-./test_suite
+gcc -std=c11 -o test test.c
+./test
+```
+
+### C++
+
+```cpp
+#include "cest.h"
+#include <string>
+
+int main() {
+    describe("String Suite", {
+        it("compares strings", {
+            std::string s = "hello";
+            expect(s).toEqual("hello");
+        });
+    });
+
+    return cest_result();
+}
+```
+
+```bash
+g++ -std=c++11 -o test test.cpp
+./test
+```
+
+### Objective-C
+
+```objc
+#import "cest.h"
+
+int main() {
+    describe("ObjC Suite", {
+        it("works with id", {
+            id obj = (id)0x1234;
+            expect(obj).toBeTruthy();
+        });
+    });
+
+    return cest_result();
+}
+```
+
+```bash
+clang -x objective-c -o test test.m -lobjc
+./test
 ```
 
 ---
 
 ## Features
 
-- **No Linker Dependencies**: Zero external libraries (even `-lm` is not needed).
-- **Modern Syntax**: Uses `describe`, `it`, and `expect` for highly readable tests.
-- **Colorized Results**: Instant visual feedback in your terminal.
-- **Single Header**: Just drop `cest.h` into your project and you are ready.
-- **Type-Safe Matchers**: Leverage C11 `_Generic` for automatic type handling (int, double, string, pointers).
+- **Header-Only**: Just include `cest.h` in your project.
+- **Multi-Language**: Native support for C, C++, Objective-C, and Objective-C++.
+- **No Dependencies**: Zero external libraries (not even `-lm`).
+- **Modern Syntax**: Uses `describe`, `it`, and `expect` for readable tests.
+- **Colorized Output**: Instant visual feedback in your terminal.
+- **Type-Safe**: Uses `_Generic` (C11) or function overloading (C++) for automatic type handling.
+- **Multi-file Support**: Compile multiple `.c` test files and Cest unifies results.
+
+---
+
+## Available Matchers
+
+| Matcher | Description |
+|:---|:---|
+| `toBe(x)` / `toEqual(x)` | Checks value equality or identity. |
+| `toBeTruthy()` | Checks if the value is "truthy". |
+| `toBeFalsy()` | Checks if the value is "falsy" or null. |
+| `toBeNull()` | Checks if a pointer is `NULL` or `nil`. |
+| `toBeGreaterThan(x)` | Checks if the value is greater than `x`. |
+| `toBeLessThan(x)` | Checks if the value is less than `x`. |
+| `toContain(substring)` | Checks if a string contains a sub-string. |
+| `toBeCloseTo(val, prec)` | Compares doubles with specific precision. |
+
+---
+
+## Building Examples
+
+```bash
+make              # Build all examples to build/
+make run          # Build and run all examples
+make clean        # Clean build directory
+```
 
 ---
 
@@ -47,20 +133,11 @@ gcc -o test_suite test_suite.c
 
 Detailed documentation is available in multiple languages:
 
-- [🇧🇷 Português (docs/pt-br)](docs/pt-br/README.md)
-- [🇺🇸 English (docs/us-en)](docs/us-en/README.md)
-
----
-
-## Examples
-
-Check out more examples in the [examples/](examples/) directory:
-
-- [Basic Usage](examples/basic.c)
-- [Floating Point & Strings](examples/advanced.c)
+- [Brazilian Portuguese (docs/pt-br)](docs/pt-br/README.md)
+- [English (docs/us-en)](docs/us-en/README.md)
 
 ---
 
 ## License
 
-Thi project is licensed under the [BSD-3 Clause License](LICENSE).
+This project is licensed under the [BSD-3 Clause License](LICENSE).
