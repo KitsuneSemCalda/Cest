@@ -1,15 +1,15 @@
-# 🧪 Cest
+# Cest
 
 **Minimalist C Unit Testing Engine inspired by Jest and Gest.**
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-BSD3-blue.svg)](LICENSE)
 [![Header Only](https://img.shields.io/badge/header--only-C11-orange.svg)](cest.h)
 
 Cest is a lightweight, **header-only** testing framework for C that brings the expressive syntax of modern JavaScript and Go testing tools to the C language. It's designed for simplicity, ease of use, and immediate feedback.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```c
 #include "cest.h"
@@ -33,7 +33,7 @@ gcc -o test_suite test_suite.c
 
 ---
 
-## ✨ Features
+## Features
 
 - **No Linker Dependencies**: Zero external libraries (even `-lm` is not needed).
 - **Modern Syntax**: Uses `describe`, `it`, and `expect` for highly readable tests.
@@ -43,7 +43,7 @@ gcc -o test_suite test_suite.c
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 Detailed documentation is available in multiple languages:
 
@@ -52,7 +52,7 @@ Detailed documentation is available in multiple languages:
 
 ---
 
-## 🔍 Examples
+## Examples
 
 Check out more examples in the [examples/](examples/) directory:
 
@@ -61,6 +61,6 @@ Check out more examples in the [examples/](examples/) directory:
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the [BSD-3 Clause License](LICENSE).
+Thi project is licensed under the [BSD-3 Clause License](LICENSE).
