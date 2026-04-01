@@ -94,7 +94,9 @@ clang -x objective-c -o test test.m -lobjc
 
 ## Demo
 
-![Cest Demo](tapes/basic_c.gif)
+![Cest Demo](assets/basic_c.gif)
+![Cest Demo](assets/basic_cpp.gif)
+![Cest Demo](assets/basic_objc.gif)
 
 ---
 
