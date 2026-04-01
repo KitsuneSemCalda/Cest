@@ -83,7 +83,7 @@ OBJCC_FLAGS = $(OBJCCFLAGS) $(OBJC_CFLAGS) $(CLANG_INCLUDES)
 
 BUILD_DIR = build
 
-EXAMPLES = $(BUILD_DIR)/basic_c $(BUILD_DIR)/basic_cpp
+EXAMPLES = $(BUILD_DIR)/basic_c $(BUILD_DIR)/basic_cpp $(BUILD_DIR)/struct_testing $(BUILD_DIR)/multi_test_suite
 ifeq ($(OBJC_AVAILABLE),yes)
   EXAMPLES += $(BUILD_DIR)/basic_objc $(BUILD_DIR)/basic_objcpp
 endif
@@ -97,6 +97,12 @@ $(BUILD_DIR):
 
 $(BUILD_DIR)/basic_c: examples/basic_c.c cest.h | check-c11
 	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/struct_testing: examples/struct_testing.c cest.h | check-c11
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/multi_test_suite: examples/multi_file/test_main.c examples/multi_file/test_math.c examples/multi_file/test_string.c cest.h | check-c11
+	$(CC) $(CFLAGS) examples/multi_file/test_main.c examples/multi_file/test_math.c examples/multi_file/test_string.c -o $@
 
 $(BUILD_DIR)/basic_cpp: examples/basic_cpp.cpp cest.h
 	$(CXX) $(CXXFLAGS) $< -o $@
@@ -115,7 +121,7 @@ run: all
 	@echo "==========================================="
 	@echo "Running Cest Examples"
 	@echo "==========================================="
-	@$(MAKE) run-c run-cpp
+	@$(MAKE) run-c run-struct run-multi run-cpp
 ifeq ($(OBJC_AVAILABLE),yes)
 	@$(MAKE) run-objc run-objcpp
 endif
@@ -126,6 +132,18 @@ run-c:
 	@echo ">>> C Example"
 	@echo "-------------------------------------------"
 	@$(BUILD_DIR)/basic_c
+
+run-struct:
+	@echo ""
+	@echo ">>> Struct Testing Example"
+	@echo "-------------------------------------------"
+	@$(BUILD_DIR)/struct_testing
+
+run-multi:
+	@echo ""
+	@echo ">>> Multi-File Test Suite Example"
+	@echo "-------------------------------------------"
+	@$(BUILD_DIR)/multi_test_suite
 
 run-cpp:
 	@echo ""

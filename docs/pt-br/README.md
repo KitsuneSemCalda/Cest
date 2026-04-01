@@ -42,16 +42,16 @@ make objc-deps   # Verifica/instala dependencias ObjC
 
 ## Matchers Disponiveis
 
-| Matcher | Descricao |
-|:---|:---|
-| `toBe(x)` / `toEqual(x)` | Verifica igualdade de valor ou identidade. |
-| `toBeTruthy()` | Verifica se o valor e "verdadeiro". |
-| `toBeFalsy()` | Verifica se o valor e "falso" ou nulo. |
-| `toBeNull()` | Verifica se um ponteiro e `NULL` ou `nil`. |
-| `toBeGreaterThan(x)` | Verifica se o valor e maior que `x`. |
-| `toBeLessThan(x)` | Verifica se o valor e menor que `x`. |
-| `toContain(substring)` | Verifica se uma string contem uma sub-string. |
-| `toBeCloseTo(val, prec)` | Compara numeros decimais com precisao especifica. |
+| Matcher | Descricao | Tipos Suportados |
+|:---|:---|:---|
+| `toBe(x)` / `toEqual(x)` | Verifica igualdade de valor ou identidade | int, double, string, pointer, bool, id |
+| `toBeTruthy()` | Verifica se o valor e "verdadeiro" | int, double, string, pointer, bool, id |
+| `toBeFalsy()` | Verifica se o valor e "falso" ou nulo | int, double, string, pointer, bool, id |
+| `toBeNull()` | Verifica se um ponteiro e `NULL` ou `nil` | pointer, id |
+| `toBeGreaterThan(x)` | Verifica se o valor e maior que `x` | int, double |
+| `toBeLessThan(x)` | Verifica se o valor e menor que `x` | int, double |
+| `toContain(substring)` | Verifica se uma string contem uma sub-string | string |
+| `toBeCloseTo(val, prec)` | Compara numeros decimais com precisao especifica | double |
 
 ## Exemplos
 
@@ -139,11 +139,30 @@ int main() {
 }
 ```
 
-## Limitações Conhecidas
+## Limitacoes Conhecidas
 
 1. **Inicializacao com chaves**: Nao utilize inicializadores com chaves (`int arr[] = {1, 2, 3};`) dentro de blocos `it()`. Declare arrays fora dos blocos.
 
 2. **Tipos especiais**: Alguns tipos como `size_t`, `std::shared_ptr`, e `std::unique_ptr` nao tem suporte nativo. Use casts para tipos basicos.
+
+3. **Structs**: Para comparacao de structs, use funcoes auxiliares com `toBeTruthy()`:
+
+```c
+typedef struct {
+    int id;
+    const char* nome;
+} Usuario;
+
+static bool UsuariosIguais(Usuario a, Usuario b) {
+    return a.id == b.id && strcmp(a.nome, b.nome) == 0;
+}
+
+int main() {
+    Usuario u1 = {1, "teste"};
+    Usuario u2 = {1, "teste"};
+    expect(UsuariosIguais(u1, u2)).toBeTruthy();
+}
+```
 
 ## Multiplos Arquivos de Teste
 

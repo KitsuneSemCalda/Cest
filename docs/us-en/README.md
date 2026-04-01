@@ -42,16 +42,16 @@ make objc-deps   # Check/install ObjC dependencies
 
 ## Available Matchers
 
-| Matcher | Description |
-|:---|:---|
-| `toBe(x)` / `toEqual(x)` | Checks value equality or identity. |
-| `toBeTruthy()` | Checks if the value is "truthy". |
-| `toBeFalsy()` | Checks if the value is "falsy" or null. |
-| `toBeNull()` | Checks if a pointer is `NULL` or `nil`. |
-| `toBeGreaterThan(x)` | Checks if the value is greater than `x`. |
-| `toBeLessThan(x)` | Checks if the value is less than `x`. |
-| `toContain(substring)` | Checks if a string contains a sub-string. |
-| `toBeCloseTo(val, prec)` | Compares doubles with specific precision. |
+| Matcher | Description | Supported Types |
+|:---|:---|:---|
+| `toBe(x)` / `toEqual(x)` | Checks value equality or identity | int, double, string, pointer, bool, id |
+| `toBeTruthy()` | Checks if the value is "truthy" | int, double, string, pointer, bool, id |
+| `toBeFalsy()` | Checks if the value is "falsy" or null | int, double, string, pointer, bool, id |
+| `toBeNull()` | Checks if a pointer is `NULL` or `nil` | pointer, id |
+| `toBeGreaterThan(x)` | Checks if the value is greater than `x` | int, double |
+| `toBeLessThan(x)` | Checks if the value is less than `x` | int, double |
+| `toContain(substring)` | Checks if a string contains a sub-string | string |
+| `toBeCloseTo(val, prec)` | Compares doubles with specific precision | double |
 
 ## Examples
 
@@ -144,6 +144,25 @@ int main() {
 1. **Brace Initialization**: Do not use brace initializers (`int arr[] = {1, 2, 3};`) inside `it()` blocks. Declare arrays outside of blocks.
 
 2. **Special Types**: Some types like `size_t`, `std::shared_ptr`, and `std::unique_ptr` don't have native support. Cast to basic types.
+
+3. **Structs**: For struct comparison, use helper functions with `toBeTruthy()`:
+
+```c
+typedef struct {
+    int id;
+    const char* name;
+} User;
+
+static bool UsersEqual(User a, User b) {
+    return a.id == b.id && strcmp(a.name, b.name) == 0;
+}
+
+int main() {
+    User u1 = {1, "test"};
+    User u2 = {1, "test"};
+    expect(UsersEqual(u1, u2)).toBeTruthy();
+}
+```
 
 ## Multi-file Projects
 

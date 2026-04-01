@@ -245,8 +245,8 @@ static inline void b_toBeCloseTo(double val, double precision) {
     }
 }
 
-// Shared bridge
-CEST_WEAK _cest_bridge_t _cest_bridge = {
+// Local bridge per translation unit to avoid pointing to wrong _cest_ctx
+static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
     ._toEqual = b_toEqual,
     ._toBe = b_toEqual,
     ._toBeGreaterThan = b_toBeGreaterThan,
