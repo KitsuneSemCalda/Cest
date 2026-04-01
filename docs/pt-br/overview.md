@@ -4,6 +4,10 @@
 
 Cest é um framework de testes leve e **header-only** para C e linguagens relacionadas. Ele traz a sintaxe expressiva de ferramentas modernas de teste JavaScript e Go para linguagens da família C.
 
+## Demonstração
+
+![Cest Demo](../tapes/basic_c.gif)
+
 ## Linguagens Suportadas
 
 | Linguagem | Extensão | Compilador | Suporte |

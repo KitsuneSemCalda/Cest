@@ -92,6 +92,12 @@ clang -x objective-c -o test test.m -lobjc
 
 ---
 
+## Demo
+
+![Cest Demo](tapes/basic_c.gif)
+
+---
+
 ## Features
 
 - **Header-Only**: Just include `cest.h` in your project.
@@ -133,8 +139,8 @@ make clean        # Clean build directory
 
 Detailed documentation is available in multiple languages:
 
-- [Brazilian Portuguese (docs/pt-br)](docs/pt-br/README.md)
-- [English (docs/us-en)](docs/us-en/README.md)
+- [Brazilian Portuguese (docs/pt-br)](docs/pt-br/overview.md)
+- [English (docs/us-en)](docs/us-en/overview.md)
 
 ---
 
