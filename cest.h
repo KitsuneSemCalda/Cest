@@ -4,22 +4,91 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 #ifdef __OBJC__
-#include <objc/objc.h>
+#import <objc/objc.h>
 #endif
 
-// Portability macro for weak symbols (shared across multiple .c files)
+#ifdef __cplusplus
+#include <string>
+#include <regex>
+#include <initializer_list>
+#endif
+
+// ============================================================================
+// CONFIGURATION MACROS (define before including cest.h)
+// ============================================================================
+// #define CEST_NO_COLORS          // Disable colored output
+// #define CEST_THREAD_SAFE        // Enable thread safety (requires pthreads)
+// #define CEST_NO_CLI             // Disable CLI argument parsing
+// #define CEST_NO_HOOKS           // Disable beforeEach/afterEach hooks
+// #define CEST_ENABLE_ARC         // Enable ARC support for Objective-C
+// #define CEST_ENABLE_SKIP        // Enable skip/only test modifiers
+
+// ============================================================================
+// Portability - MSVC and Cross-Platform Support
+// ============================================================================
 #ifndef CEST_WEAK
 #  if defined(_MSC_VER)
-#    define CEST_WEAK static
+#    if defined(__cplusplus)
+#      define CEST_WEAK static
+#    else
+#      define CEST_WEAK __declspec(selectany) extern
+#    endif
 #  else
 #    define CEST_WEAK __attribute__((weak))
 #  endif
 #endif
 
+// Thread safety support
+#ifdef CEST_THREAD_SAFE
+#  include <pthread.h>
+#  define CEST_LOCK() pthread_mutex_lock(&_cest_mutex)
+#  define CEST_UNLOCK() pthread_mutex_unlock(&_cest_mutex)
+#else
+#  define CEST_LOCK()
+#  define CEST_UNLOCK()
+#endif
+
+// Windows console color support
+#ifdef _WIN32
+#  ifndef CEST_NO_COLORS
+#    include <windows.h>
+#    define _CEST_INIT_COLORS() do { \
+        DWORD mode; \
+        HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE); \
+        if (GetConsoleMode(h, &mode)) SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING); \
+    } while(0)
+#  endif
+#endif
+
+#ifndef _CEST_INIT_COLORS
+#  define _CEST_INIT_COLORS()
+#endif
+
 // Internal Math Helpers (To avoid -lm dependency)
 #define _CEST_ABS(x) ((x) < 0 ? -(x) : (x))
+
+// Color codes
+#ifndef CEST_NO_COLORS
+#  define CEST_CLR_RESET   "\033[0m"
+#  define CEST_CLR_RED     "\033[31m"
+#  define CEST_CLR_GREEN   "\033[32m"
+#  define CEST_CLR_YELLOW  "\033[33m"
+#  define CEST_CLR_BLUE    "\033[34m"
+#  define CEST_CLR_BOLD    "\033[1m"
+#  define CEST_CLR_DIM     "\033[90m"
+#else
+#  define CEST_CLR_RESET   ""
+#  define CEST_CLR_RED     ""
+#  define CEST_CLR_GREEN   ""
+#  define CEST_CLR_YELLOW  ""
+#  define CEST_CLR_BLUE    ""
+#  define CEST_CLR_BOLD    ""
+#  define CEST_CLR_DIM     ""
+#endif
 
 // Types and Values
 typedef enum {
@@ -27,10 +96,9 @@ typedef enum {
     CEST_TYPE_DOUBLE,
     CEST_TYPE_STR,
     CEST_TYPE_PTR,
-    CEST_TYPE_BOOL
-#ifdef __OBJC__
-    , CEST_TYPE_OBJC_ID
-#endif
+    CEST_TYPE_BOOL,
+    CEST_TYPE_OBJC_ID,
+    CEST_TYPE_REGEX
 } cest_type_t;
 
 typedef struct {
@@ -44,6 +112,9 @@ typedef struct {
 #ifdef __OBJC__
         id obj;
 #endif
+#ifdef __cplusplus
+        std::regex* re;
+#endif
     } as;
 } cest_value_t;
 
@@ -52,10 +123,25 @@ typedef int (*cest_match_fn)(cest_value_t actual, cest_value_t expected);
 typedef struct {
     int passed;
     int failed;
+    int skipped;
+    const char* filter_pattern;
 } cest_stats_t;
 
 // Shared stats across all compilation units
-CEST_WEAK cest_stats_t _cest_global_stats = {0, 0};
+CEST_WEAK cest_stats_t _cest_global_stats = {0, 0, 0, NULL};
+
+#ifdef CEST_THREAD_SAFE
+CEST_WEAK pthread_mutex_t _cest_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
+// Test state for skip/only
+typedef enum {
+    CEST_TEST_NORMAL,
+    CEST_TEST_SKIP,
+    CEST_TEST_ONLY
+} cest_test_state_t;
+
+CEST_WEAK int _cest_current_test_state = CEST_TEST_NORMAL;
 
 // Value Wrappers
 static inline cest_value_t cest_int(long long v) { cest_value_t cv; cv.type = CEST_TYPE_INT; cv.as.i = v; return cv; }
@@ -123,7 +209,15 @@ static inline void _cest_print_value(cest_value_t v) {
         case CEST_TYPE_BOOL: printf("(%s: %s)", "bool", v.as.b ? "true" : "false"); break;
 #ifdef __OBJC__
         case CEST_TYPE_OBJC_ID: printf("(%s: %p)", "id", (void*)v.as.obj); break;
+#else
+        case CEST_TYPE_OBJC_ID: printf("(%s: %p)", "id", v.as.p); break;
 #endif
+#ifdef __cplusplus
+        case CEST_TYPE_REGEX: printf("(%s)", "regex"); break;
+#else
+        case CEST_TYPE_REGEX: printf("(%s)", "regex"); break;
+#endif
+        default: printf("(unknown)"); break;
     }
 }
 
@@ -271,20 +365,206 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
 #define toBeCloseTo(v, p) _toBeCloseTo(v, p)
 
 // Test Runner Macros
-#define describe(name, block) do { printf("\n\033[1;34m● %s\033[0m\n", name); block } while (0)
-#define test(name, block) do { printf("  %s\n", name); block } while (0)
+#define describe(name, block) do { \
+    printf("\n" CEST_CLR_BOLD "● %s" CEST_CLR_RESET "\n", name); \
+    block \
+} while (0)
+
+#define test(name, block) do { \
+    printf("  %s\n", name); \
+    block \
+} while (0)
+
 #define it(name, block) test(name, block)
 
+// ============================================================================
+// Hooks (beforeEach/afterEach) - disabled with CEST_NO_HOOKS
+// ============================================================================
+#ifndef CEST_NO_HOOKS
+typedef void (*cest_hook_fn)(void);
+static cest_hook_fn _cest_before_each_fn __attribute__((unused)) = NULL;
+static cest_hook_fn _cest_after_each_fn __attribute__((unused)) = NULL;
+
+#define beforeEach(fn) do { _cest_before_each_fn = fn; } while (0)
+#define afterEach(fn) do { _cest_after_each_fn = fn; } while (0)
+
+#define _CEST_RUN_BEFORE_EACH() do { if (_cest_before_each_fn) _cest_before_each_fn(); } while(0)
+#define _CEST_RUN_AFTER_EACH() do { if (_cest_after_each_fn) _cest_after_each_fn(); } while(0)
+#else
+#define beforeEach(fn)
+#define afterEach(fn)
+#define _CEST_RUN_BEFORE_EACH()
+#define _CEST_RUN_AFTER_EACH()
+#endif
+
+// ============================================================================
+// Skip/Only tests - enabled with CEST_ENABLE_SKIP
+// ============================================================================
+#ifdef CEST_ENABLE_SKIP
+#define _CEST_SKIP_IF_SKIPPED() do { \
+    if (_cest_current_test_state == CEST_TEST_SKIP) { \
+        printf("  " CEST_CLR_YELLOW "⊘ %s (skipped)" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); \
+        _cest_global_stats.skipped++; \
+        return; \
+    } \
+} while (0)
+
+#define _CEST_SKIP_IF_NOT_ONLY() do { \
+    int has_only = (_cest_global_stats.filter_pattern != NULL); \
+    if (has_only && _cest_current_test_state != CEST_TEST_ONLY) { \
+        printf("  " CEST_CLR_DIM "○ %s (only mode - skipped)" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); \
+        _cest_global_stats.skipped++; \
+        return; \
+    } \
+} while (0)
+
+#define skip(desc, block) describe(desc "_SKIPPED", { (void)block; })
+#define only(desc, block) describe(desc "_ONLY", { (void)block; })
+#else
+#define _CEST_SKIP_IF_SKIPPED()
+#define _CEST_SKIP_IF_NOT_ONLY()
+#define skip(desc, block)
+#define only(desc, block)
+#endif
+
+// ============================================================================
+// CLI Arguments (disabled with CEST_NO_CLI)
+// ============================================================================
+#ifndef CEST_NO_CLI
+static const char* _cest_cli_args[16];
+static int _cest_cli_count = 0;
+
+static inline void _cest_parse_cli_args(int argc, char* argv[]) {
+    _CEST_INIT_COLORS();
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-') {
+            _cest_cli_args[_cest_cli_count++] = argv[i];
+        } else {
+            _cest_global_stats.filter_pattern = argv[i];
+        }
+    }
+}
+
+static inline int _cest_has_cli_flag(const char* flag) {
+    for (int i = 0; i < _cest_cli_count; i++) {
+        if (strcmp(_cest_cli_args[i], flag) == 0) return 1;
+    }
+    return 0;
+}
+
+#define cest_init(argc, argv) _cest_parse_cli_args(argc, argv)
+#else
+#define cest_init(argc, argv)
+#define _cest_has_cli_flag(flag) (0)
+#endif
+
+// ============================================================================
+// Enhanced Matchers
+// ============================================================================
+static inline int match_regex(cest_value_t a, cest_value_t b) {
+#ifdef __cplusplus
+    if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_REGEX) {
+        return std::regex_match(a.as.s, *b.as.re);
+    }
+#else
+    (void)a; (void)b;
+#endif
+    return 0;
+}
+
+static inline int match_not(cest_value_t a, cest_value_t b) {
+    return !match_eq(a, b);
+}
+
+#ifndef CEST_NO_HOOKS
+static inline void b_toMatch(cest_value_t expected, const char* expected_expr) {
+    _cest_assert_impl(expected, match_regex, "to match", expected_expr);
+}
+#endif
+
+static inline void b_toBeDefined(void) {
+    int ok = (_cest_ctx.actual.type != CEST_TYPE_PTR || _cest_ctx.actual.as.p != NULL)
+#ifdef __OBJC__
+           && (_cest_ctx.actual.type != CEST_TYPE_OBJC_ID || _cest_ctx.actual.as.obj != nil)
+#endif
+    ;
+    if (ok) { printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be defined\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
+    else { printf("  " CEST_CLR_RED "✕ %s failed" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); printf("    " CEST_CLR_GREEN "Expected: defined" CEST_CLR_RESET "\n"); _cest_global_stats.failed++; }
+}
+
+static inline void b_toBeUndefined(void) {
+    int ok = (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p == NULL)
+#ifdef __OBJC__
+           || (_cest_ctx.actual.type == CEST_TYPE_OBJC_ID && _cest_ctx.actual.as.obj == nil)
+#endif
+    ;
+    if (ok) { printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be undefined\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
+    else { printf("  " CEST_CLR_RED "✕ %s failed" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); printf("    " CEST_CLR_GREEN "Expected: undefined" CEST_CLR_RESET "\n"); _cest_global_stats.failed++; }
+}
+
+// Extended bridge
+typedef struct {
+    void (*_toEqual)(cest_value_t expected, const char* expected_expr);
+    void (*_toBe)(cest_value_t expected, const char* expected_expr);
+    void (*_toBeGreaterThan)(cest_value_t expected, const char* expected_expr);
+    void (*_toBeLessThan)(cest_value_t expected, const char* expected_expr);
+    void (*_toContain)(cest_value_t expected, const char* expected_expr);
+    void (*_toBeNull)(void);
+    void (*_toBeTruthy)(void);
+    void (*_toBeFalsy)(void);
+    void (*_toBeCloseTo)(double val, double precision);
+#ifndef CEST_NO_HOOKS
+    void (*_toMatch)(cest_value_t expected, const char* expected_expr);
+#endif
+    void (*_toBeDefined)(void);
+    void (*_toBeUndefined)(void);
+} _cest_bridge_ex_t;
+
+static _cest_bridge_ex_t _cest_bridge_ex __attribute__((unused)) = {
+    ._toEqual = b_toEqual,
+    ._toBe = b_toEqual,
+    ._toBeGreaterThan = b_toBeGreaterThan,
+    ._toBeLessThan = b_toBeLessThan,
+    ._toContain = b_toContain,
+    ._toBeNull = b_toBeNull,
+    ._toBeTruthy = b_toBeTruthy,
+    ._toBeFalsy = b_toBeFalsy,
+    ._toBeCloseTo = b_toBeCloseTo,
+#ifndef CEST_NO_HOOKS
+    ._toMatch = b_toMatch,
+#endif
+    ._toBeDefined = b_toBeDefined,
+    ._toBeUndefined = b_toBeUndefined
+};
+
+#define expect_ext(x) (_cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_value(x), _cest_bridge_ex)
+
+#ifndef CEST_NO_HOOKS
+#define toMatch(regex) _toMatch(cest_value(regex), #regex)
+#endif
+#define toBeDefined() _toBeDefined()
+#define toBeUndefined() _toBeUndefined()
+
+// ============================================================================
+// Enhanced Results
+// ============================================================================
 static inline int cest_result() {
-    printf("\n\033[1mTest Suites Summary:\033[0m\n");
+    printf("\n" CEST_CLR_BOLD "Test Suites Summary:" CEST_CLR_RESET "\n");
     if (_cest_global_stats.failed == 0) {
-        printf("  \033[32mAll %d tests passed!\033[0m\n\n", _cest_global_stats.passed);
+        printf("  " CEST_CLR_GREEN "All %d tests passed!" CEST_CLR_RESET, _cest_global_stats.passed);
+        if (_cest_global_stats.skipped > 0) printf(" (" CEST_CLR_YELLOW "%d skipped" CEST_CLR_RESET ")", _cest_global_stats.skipped);
+        printf("\n\n");
         return 0;
     } else {
-        printf("  \033[32mPassed: %d\033[0m\n", _cest_global_stats.passed);
-        printf("  \033[31mFailed: %d\033[0m\n\n", _cest_global_stats.failed);
+        printf("  " CEST_CLR_GREEN "Passed: %d" CEST_CLR_RESET, _cest_global_stats.passed);
+        printf("\n  " CEST_CLR_RED "Failed: %d" CEST_CLR_RESET, _cest_global_stats.failed);
+        if (_cest_global_stats.skipped > 0) printf("\n  " CEST_CLR_YELLOW "Skipped: %d" CEST_CLR_RESET, _cest_global_stats.skipped);
+        printf("\n\n");
         return 1;
     }
 }
+
+// Backwards compatibility
+#define cest_result_old cest_result
 
 #endif

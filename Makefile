@@ -90,7 +90,7 @@ endif
 
 .PHONY: all run clean test objc-deps run-c run-cpp run-objc run-objcpp check-c11
 
-all: $(BUILD_DIR) $(EXAMPLES) run
+all: $(BUILD_DIR) $(EXAMPLES)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
