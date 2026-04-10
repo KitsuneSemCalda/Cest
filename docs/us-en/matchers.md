@@ -15,6 +15,7 @@ Matchers are functions that verify values. Cest provides a fluent API through `e
 | `toBeLessThan(x)` | Checks if the value is less than `x` | int, double |
 | `toContain(substring)` | Checks if a string contains a sub-string | string |
 | `toBeCloseTo(val, prec)` | Compares doubles with specific precision | double |
+| `toEqualArray(x, len)` | Compares two memory regions | array |
 
 ## Examples
 
@@ -51,6 +52,14 @@ expect(0).toBeFalsy();
 int x = 42;
 expect(&x).toBeTruthy();
 expect(NULL).toBeNull();
+```
+
+### Arrays
+
+```c
+int a[] = {1, 2, 3};
+int b[] = {1, 2, 3};
+expect_array(a, 3).toEqualArray(b, 3);
 ```
 
 ## See also

@@ -34,11 +34,16 @@ it("test description", {
 ## Assertion Macros
 
 ### expect(x)
+### expect_array(x, len)
 
 Starts an assertion with the actual value.
 
 ```c
 expect(2 + 2).toBe(4);
+
+// For arrays
+int a[] = {1, 2, 3};
+expect_array(a, 3).toEqualArray(b, 3);
 ```
 
 **Note:** The argument `x` is automatically converted to `cest_value_t` using:
@@ -60,6 +65,7 @@ expect(2 + 2).toBe(4);
 | `toBeTruthy()` | `expect(val).toBeTruthy()` |
 | `toBeFalsy()` | `expect(val).toBeFalsy()` |
 | `toBeCloseTo(val, prec)` | `expect(double_val).toBeCloseTo(3.14, 0.01)` |
+| `toEqualArray(x, len)` | `expect_array(arr, n).toEqualArray(arr2, n)` |
 
 ---
 
@@ -82,16 +88,54 @@ int main() {
 
 ---
 
-## Value Wrappers
+### cest_init(argc, argv)
 
-| Function | Description |
+Initialize Cest with command-line arguments. Enables filtering tests.
+
+```c
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+    describe("Tests", { /* ... */ });
+    return cest_result();
+}
+```
+
+**Usage:**
+```bash
+./test "Math"          # Run only tests containing "Math"
+./test                # Run all tests
+```
+
+---
+
+## Configuration Macros
+
+Define these **before** including `cest.h`:
+
+| Macro | Description |
 |:---|:---|
-| `cest_int(v)` | Creates `cest_value_t` from integer |
-| `cest_double(v)` | Creates `cest_value_t` from double |
-| `cest_str(v)` | Creates `cest_value_t` from string |
-| `cest_ptr(v)` | Creates `cest_value_t` from pointer |
-| `cest_bool(v)` | Creates `cest_value_t` from boolean |
-| `cest_value(v)` | Creates automatic value |
+| `CEST_NO_COLORS` | Disable colored output |
+| `CEST_THREAD_SAFE` | Enable thread safety (requires pthreads) |
+| `CEST_NO_CLI` | Disable CLI argument parsing |
+| `CEST_NO_HOOKS` | Disable beforeEach/afterEach hooks |
+| `CEST_ENABLE_SKIP` | Enable skip/only test modifiers |
+| `CEST_ENABLE_LEAK_DETECTION` | Enable memory leak detection |
+
+### Leak Detection
+
+When enabled, use `cest_malloc` and `cest_free` instead of `malloc`/`free`:
+
+```c
+#define CEST_ENABLE_LEAK_DETECTION
+#include "cest.h"
+
+int main() {
+    int* p = cest_malloc(sizeof(int));
+    // ...
+    cest_free(p);
+    return cest_result();
+}
+```
 
 ---
 

@@ -11,6 +11,7 @@ typedef enum {
     CEST_TYPE_STR,      // Strings (const char*)
     CEST_TYPE_PTR,      // Ponteiros genéricos (const void*)
     CEST_TYPE_BOOL,     // Booleanos (bool)
+    CEST_TYPE_ARRAY,    // Arrays/Regiões de memória
 #ifdef __OBJC__
     CEST_TYPE_OBJC_ID,  // Objetos Objective-C (id)
 #endif
@@ -95,13 +96,13 @@ extern cest_stats_t _cest_global_stats;
 Tipo para funções de comparação:
 
 ```c
-typedef int (*cest_match_fn)(cest_value_t actual, cest_value_t expected);
+typedef int (*cest_match_fn)(cest_value_t actual, cest_value_t expected, int* diff_pos);
 
 // Exemplos de funções de match
-int match_eq(cest_value_t a, cest_value_t b);
-int match_gt(cest_value_t a, cest_value_t b);
-int match_lt(cest_value_t a, cest_value_t b);
-int match_contain(cest_value_t a, cest_value_t b);
+int match_eq(cest_value_t a, cest_value_t b, int* diff_pos);
+int match_gt(cest_value_t a, cest_value_t b, int* diff_pos);
+int match_lt(cest_value_t a, cest_value_t b, int* diff_pos);
+int match_contain(cest_value_t a, cest_value_t b, int* diff_pos);
 ```
 
 ## Ver também

@@ -34,11 +34,16 @@ it("descrição do teste", {
 ## Macros de Asserção
 
 ### expect(x)
+### expect_array(x, len)
 
 Inicia uma asserção com o valor atual.
 
 ```c
 expect(2 + 2).toBe(4);
+
+// Para arrays
+int a[] = {1, 2, 3};
+expect_array(a, 3).toEqualArray(b, 3);
 ```
 
 **Nota:** O argumento `x` é automaticamente convertido para `cest_value_t` usando:
@@ -60,6 +65,7 @@ expect(2 + 2).toBe(4);
 | `toBeTruthy()` | `expect(val).toBeTruthy()` |
 | `toBeFalsy()` | `expect(val).toBeFalsy()` |
 | `toBeCloseTo(val, prec)` | `expect(double_val).toBeCloseTo(3.14, 0.01)` |
+| `toEqualArray(x, len)` | `expect_array(arr, n).toEqualArray(arr2, n)` |
 
 ---
 
@@ -82,6 +88,26 @@ int main() {
 
 ---
 
+### cest_init(argc, argv)
+
+Inicializa o Cest com argumentos de linha de comando. Permite filtrar testes.
+
+```c
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+    describe("Testes", { /* ... */ });
+    return cest_result();
+}
+```
+
+**Uso:**
+```bash
+./test "Math"          # Roda apenas testes contendo "Math"
+./test                # Roda todos os testes
+```
+
+---
+
 ### Value Wrappers
 
 | Função | Descrição |
@@ -91,7 +117,39 @@ int main() {
 | `cest_str(v)` | Cria `cest_value_t` de string |
 | `cest_ptr(v)` | Cria `cest_value_t` de ponteiro |
 | `cest_bool(v)` | Cria `cest_value_t` de booleano |
+| `cest_array(v, len)` | Cria `cest_value_t` de array |
 | `cest_value(v)` | Cria valor automático |
+
+---
+
+## Macros de Configuração
+
+Defina estas **antes** de incluir `cest.h`:
+
+| Macro | Descrição |
+|:---|:---|
+| `CEST_NO_COLORS` | Desabilita output colorido |
+| `CEST_THREAD_SAFE` | Habilita thread safety (requer pthreads) |
+| `CEST_NO_CLI` | Desabilita parsing de argumentos CLI |
+| `CEST_NO_HOOKS` | Desabilita hooks beforeEach/afterEach |
+| `CEST_ENABLE_SKIP` | Habilita modificadores skip/only |
+| `CEST_ENABLE_LEAK_DETECTION` | Habilita detecção de memory leak |
+
+### Detecção de Leak
+
+Quando habilitado, use `cest_malloc` e `cest_free` em vez de `malloc`/`free`:
+
+```c
+#define CEST_ENABLE_LEAK_DETECTION
+#include "cest.h"
+
+int main() {
+    int* p = cest_malloc(sizeof(int));
+    // ...
+    cest_free(p);
+    return cest_result();
+}
+```
 
 ---
 
