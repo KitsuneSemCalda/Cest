@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <time.h>
 
 #ifdef __OBJC__
 #import <objc/objc.h>
@@ -98,7 +99,8 @@ typedef enum {
     CEST_TYPE_PTR,
     CEST_TYPE_BOOL,
     CEST_TYPE_OBJC_ID,
-    CEST_TYPE_REGEX
+    CEST_TYPE_REGEX,
+    CEST_TYPE_ARRAY
 } cest_type_t;
 
 typedef struct {
@@ -116,9 +118,10 @@ typedef struct {
         std::regex* re;
 #endif
     } as;
+    int len;
 } cest_value_t;
 
-typedef int (*cest_match_fn)(cest_value_t actual, cest_value_t expected);
+typedef int (*cest_match_fn)(cest_value_t actual, cest_value_t expected, int* diff_pos);
 
 typedef struct {
     int passed;
@@ -134,6 +137,32 @@ CEST_WEAK cest_stats_t _cest_global_stats = {0, 0, 0, NULL};
 CEST_WEAK pthread_mutex_t _cest_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
+// ============================================================================
+// Leak Detection (optional - enable with CEST_ENABLE_LEAK_DETECTION)
+// ============================================================================
+#ifdef CEST_ENABLE_LEAK_DETECTION
+CEST_WEAK long long _cest_alloc_count = 0;
+CEST_WEAK long long _cest_free_count = 0;
+
+#define cest_malloc(size) _cest_malloc(size, __FILE__, __LINE__)
+#define cest_free(ptr) _cest_free(ptr, __FILE__, __LINE__)
+
+static inline void* _cest_malloc(size_t size, const char* file, int line) {
+    (void)file; (void)line;
+    _cest_alloc_count++;
+    return malloc(size);
+}
+
+static inline void _cest_free(void* ptr, const char* file, int line) {
+    (void)file; (void)line;
+    if (ptr) _cest_free_count++;
+    free(ptr);
+}
+#else
+#define cest_malloc(size) malloc(size)
+#define cest_free(ptr) free(ptr)
+#endif
+
 // Test state for skip/only
 typedef enum {
     CEST_TEST_NORMAL,
@@ -144,13 +173,14 @@ typedef enum {
 CEST_WEAK int _cest_current_test_state = CEST_TEST_NORMAL;
 
 // Value Wrappers
-static inline cest_value_t cest_int(long long v) { cest_value_t cv; cv.type = CEST_TYPE_INT; cv.as.i = v; return cv; }
-static inline cest_value_t cest_double(double v) { cest_value_t cv; cv.type = CEST_TYPE_DOUBLE; cv.as.d = v; return cv; }
-static inline cest_value_t cest_str(const char* v) { cest_value_t cv; cv.type = CEST_TYPE_STR; cv.as.s = v ? v : "NULL"; return cv; }
-static inline cest_value_t cest_ptr(const void* v) { cest_value_t cv; cv.type = CEST_TYPE_PTR; cv.as.p = v; return cv; }
-static inline cest_value_t cest_bool(bool v) { cest_value_t cv; cv.type = CEST_TYPE_BOOL; cv.as.b = v; return cv; }
+static inline cest_value_t cest_int(long long v) { cest_value_t cv; cv.type = CEST_TYPE_INT; cv.as.i = v; cv.len = 0; return cv; }
+static inline cest_value_t cest_double(double v) { cest_value_t cv; cv.type = CEST_TYPE_DOUBLE; cv.as.d = v; cv.len = 0; return cv; }
+static inline cest_value_t cest_str(const char* v) { cest_value_t cv; cv.type = CEST_TYPE_STR; cv.as.s = v ? v : "NULL"; cv.len = 0; return cv; }
+static inline cest_value_t cest_ptr(const void* v) { cest_value_t cv; cv.type = CEST_TYPE_PTR; cv.as.p = v; cv.len = 0; return cv; }
+static inline cest_value_t cest_bool(bool v) { cest_value_t cv; cv.type = CEST_TYPE_BOOL; cv.as.b = v; cv.len = 0; return cv; }
+static inline cest_value_t cest_array(const void* v, int len) { cest_value_t cv; cv.type = CEST_TYPE_ARRAY; cv.as.p = v; cv.len = len; return cv; }
 #ifdef __OBJC__
-static inline cest_value_t cest_id(id v) { cest_value_t cv; cv.type = CEST_TYPE_OBJC_ID; cv.as.obj = v; return cv; }
+static inline cest_value_t cest_id(id v) { cest_value_t cv; cv.type = CEST_TYPE_OBJC_ID; cv.as.obj = v; cv.len = 0; return cv; }
 #endif
 
 #ifdef __cplusplus
@@ -191,13 +221,17 @@ static inline cest_value_t cest_value(T* v) { return cest_ptr((const void*)v); }
 #endif
 #endif
 
-// Internal Context (Can be static as it's used per-expectation)
+// Internal Context (per-expectation to avoid double evaluation)
 static struct {
     const char* file;
     int line;
     const char* actual_expr;
     cest_value_t actual;
+    cest_value_t expected;
+    const char* expected_expr;
 } _cest_ctx;
+
+static int _cest_last_diff_pos __attribute__((unused)) = -1;
 
 // Core Assertion Implementation
 static inline void _cest_print_value(cest_value_t v) {
@@ -207,6 +241,7 @@ static inline void _cest_print_value(cest_value_t v) {
         case CEST_TYPE_STR: printf("(%s: \"%s\")", "string", v.as.s); break;
         case CEST_TYPE_PTR: printf("(%s: %p)", "pointer", v.as.p); break;
         case CEST_TYPE_BOOL: printf("(%s: %s)", "bool", v.as.b ? "true" : "false"); break;
+        case CEST_TYPE_ARRAY: printf("(%s[%d]: %p)", "array", v.len, v.as.p); break;
 #ifdef __OBJC__
         case CEST_TYPE_OBJC_ID: printf("(%s: %p)", "id", (void*)v.as.obj); break;
 #else
@@ -222,20 +257,33 @@ static inline void _cest_print_value(cest_value_t v) {
 }
 
 static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match, const char* match_name, const char* expected_expr) {
-    if (match(_cest_ctx.actual, expected)) {
+    int diff_pos = -1;
+    int passed = match(_cest_ctx.actual, expected, &diff_pos);
+    if (passed) {
         printf("  \033[32m✓\033[0m %s %s %s\n", _cest_ctx.actual_expr, match_name, expected_expr);
         _cest_global_stats.passed++;
     } else {
         printf("  \033[31m✕ %s failed\033[0m\n", _cest_ctx.actual_expr);
         printf("    \033[32mExpected %s: %s\033[0m\n", match_name, expected_expr);
         printf("    \033[31mReceived "); _cest_print_value(_cest_ctx.actual); printf("\033[0m\n");
+        if (_cest_ctx.actual.type == CEST_TYPE_STR && expected.type == CEST_TYPE_STR) {
+            if (diff_pos >= 0) {
+                printf("    \033[90mDiff at position %d: '%c' vs '%c'\033[0m\n", 
+                       diff_pos, _cest_ctx.actual.as.s[diff_pos], expected.as.s[diff_pos]);
+            }
+        }
+        if (_cest_ctx.actual.type == CEST_TYPE_DOUBLE && expected.type == CEST_TYPE_DOUBLE) {
+            double diff = _CEST_ABS(_cest_ctx.actual.as.d - expected.as.d);
+            printf("    \033[90mDiff: %g\033[0m\n", diff);
+        }
         printf("    \033[90m(%s:%d)\033[0m\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
 }
 
 // Matcher Logic
-static inline int match_eq(cest_value_t a, cest_value_t b) {
+static inline int match_eq(cest_value_t a, cest_value_t b, int* diff_pos) {
+    if (diff_pos) *diff_pos = -1;
     if (a.type != b.type) {
 #ifdef __OBJC__
         if ((a.type == CEST_TYPE_PTR && b.type == CEST_TYPE_OBJC_ID) ||
@@ -256,9 +304,26 @@ static inline int match_eq(cest_value_t a, cest_value_t b) {
     switch (a.type) {
         case CEST_TYPE_INT: return a.as.i == b.as.i;
         case CEST_TYPE_DOUBLE: return _CEST_ABS(a.as.d - b.as.d) < 0.000001;
-        case CEST_TYPE_STR: return strcmp(a.as.s, b.as.s) == 0;
+        case CEST_TYPE_STR: {
+            if (strcmp(a.as.s, b.as.s) == 0) return 1;
+            if (diff_pos) {
+                const char* p1 = a.as.s;
+                const char* p2 = b.as.s;
+                while (*p1 && *p2) {
+                    if (*p1 != *p2) break;
+                    p1++; p2++;
+                }
+                *diff_pos = (int)(p1 - a.as.s);
+            }
+            return 0;
+        }
         case CEST_TYPE_PTR: return a.as.p == b.as.p;
         case CEST_TYPE_BOOL: return a.as.b == b.as.b;
+        case CEST_TYPE_ARRAY: {
+            if (a.len != b.len) return 0;
+            if (a.len == 0) return 1;
+            return memcmp(a.as.p, b.as.p, a.len) == 0;
+        }
 #ifdef __OBJC__
         case CEST_TYPE_OBJC_ID: return a.as.obj == b.as.obj;
 #endif
@@ -266,19 +331,22 @@ static inline int match_eq(cest_value_t a, cest_value_t b) {
     }
 }
 
-static inline int match_gt(cest_value_t a, cest_value_t b) {
+static inline int match_gt(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)diff_pos;
     if (a.type == CEST_TYPE_INT && b.type == CEST_TYPE_INT) return a.as.i > b.as.i;
     if (a.type == CEST_TYPE_DOUBLE && b.type == CEST_TYPE_DOUBLE) return a.as.d > b.as.d;
     return 0;
 }
 
-static inline int match_lt(cest_value_t a, cest_value_t b) {
+static inline int match_lt(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)diff_pos;
     if (a.type == CEST_TYPE_INT && b.type == CEST_TYPE_INT) return a.as.i < b.as.i;
     if (a.type == CEST_TYPE_DOUBLE && b.type == CEST_TYPE_DOUBLE) return a.as.d < b.as.d;
     return 0;
 }
 
-static inline int match_contain(cest_value_t a, cest_value_t b) {
+static inline int match_contain(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)diff_pos;
     if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) return strstr(a.as.s, b.as.s) != NULL;
     return 0;
 }
@@ -294,9 +362,11 @@ typedef struct {
     void (*_toBeTruthy)(void);
     void (*_toBeFalsy)(void);
     void (*_toBeCloseTo)(double val, double precision);
+    void (*_toEqualArray)(cest_value_t expected, const char* expected_expr);
 } _cest_bridge_t;
 
 static inline void b_toEqual(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_eq, "to equal", ee); }
+static inline void b_toEqualArray(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_eq, "to equal array", ee); }
 static inline void b_toBeGreaterThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_gt, "to be greater than", ee); }
 static inline void b_toBeLessThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_lt, "to be less than", ee); }
 static inline void b_toContain(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_contain, "to contain", ee); }
@@ -349,10 +419,12 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
     ._toBeNull = b_toBeNull,
     ._toBeTruthy = b_toBeTruthy,
     ._toBeFalsy = b_toBeFalsy,
-    ._toBeCloseTo = b_toBeCloseTo
+    ._toBeCloseTo = b_toBeCloseTo,
+    ._toEqualArray = b_toEqualArray
 };
 
 #define expect(x) (_cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_value(x), _cest_bridge)
+#define expect_array(x, len) (_cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_array(x, len), _cest_bridge)
 
 #define toEqual(x) _toEqual(cest_value(x), #x)
 #define toBe(x) _toBe(cest_value(x), #x)
@@ -363,16 +435,39 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
 #define toBeTruthy() _toBeTruthy()
 #define toBeFalsy() _toBeFalsy()
 #define toBeCloseTo(v, p) _toBeCloseTo(v, p)
+#define toEqualArray(x, len) _toEqualArray(cest_array(x, len), #x "(" #x ", " #len ")")
 
-// Test Runner Macros
+// Test Runner Macros with Timing
+static clock_t _cest_test_start_time __attribute__((unused)) = 0;
+
+static inline void _cest_print_result(int passed, const char* expr) {
+    clock_t elapsed = clock() - _cest_test_start_time;
+    double seconds = (double)elapsed / CLOCKS_PER_SEC;
+    if (passed) {
+        if (seconds > 0.001) {
+            printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s (" CEST_CLR_DIM "%.4fs" CEST_CLR_RESET ")\n", expr, seconds);
+        } else {
+            printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s\n", expr);
+        }
+    } else {
+        printf("  " CEST_CLR_RED "✕" CEST_CLR_RESET " %s failed\n", expr);
+    }
+}
+
 #define describe(name, block) do { \
     printf("\n" CEST_CLR_BOLD "● %s" CEST_CLR_RESET "\n", name); \
     block \
 } while (0)
 
 #define test(name, block) do { \
-    printf("  %s\n", name); \
-    block \
+    if (!_cest_should_run_test(name)) { \
+        printf("  " CEST_CLR_DIM "○ %s (filtered)" CEST_CLR_RESET "\n", name); \
+        _cest_global_stats.skipped++; \
+    } else { \
+        _cest_test_start_time = clock(); \
+        printf("  %s\n", name); \
+        block \
+    } \
 } while (0)
 
 #define it(name, block) test(name, block)
@@ -452,28 +547,35 @@ static inline int _cest_has_cli_flag(const char* flag) {
     return 0;
 }
 
+static inline int _cest_should_run_test(const char* name) {
+    if (!_cest_global_stats.filter_pattern) return 1;
+    return strstr(name, _cest_global_stats.filter_pattern) != NULL;
+}
+
 #define cest_init(argc, argv) _cest_parse_cli_args(argc, argv)
 #else
 #define cest_init(argc, argv)
 #define _cest_has_cli_flag(flag) (0)
+#define _cest_should_run_test(name) (1)
 #endif
 
 // ============================================================================
 // Enhanced Matchers
 // ============================================================================
-static inline int match_regex(cest_value_t a, cest_value_t b) {
+static inline int match_regex(cest_value_t a, cest_value_t b, int* diff_pos) {
 #ifdef __cplusplus
+    (void)diff_pos;
     if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_REGEX) {
         return std::regex_match(a.as.s, *b.as.re);
     }
 #else
-    (void)a; (void)b;
+    (void)a; (void)b; (void)diff_pos;
 #endif
     return 0;
 }
 
-static inline int match_not(cest_value_t a, cest_value_t b) {
-    return !match_eq(a, b);
+static inline int match_not(cest_value_t a, cest_value_t b, int* diff_pos) {
+    return !match_eq(a, b, diff_pos);
 }
 
 #ifndef CEST_NO_HOOKS
@@ -553,15 +655,24 @@ static inline int cest_result() {
     if (_cest_global_stats.failed == 0) {
         printf("  " CEST_CLR_GREEN "All %d tests passed!" CEST_CLR_RESET, _cest_global_stats.passed);
         if (_cest_global_stats.skipped > 0) printf(" (" CEST_CLR_YELLOW "%d skipped" CEST_CLR_RESET ")", _cest_global_stats.skipped);
-        printf("\n\n");
-        return 0;
+        printf("\n");
     } else {
         printf("  " CEST_CLR_GREEN "Passed: %d" CEST_CLR_RESET, _cest_global_stats.passed);
         printf("\n  " CEST_CLR_RED "Failed: %d" CEST_CLR_RESET, _cest_global_stats.failed);
         if (_cest_global_stats.skipped > 0) printf("\n  " CEST_CLR_YELLOW "Skipped: %d" CEST_CLR_RESET, _cest_global_stats.skipped);
-        printf("\n\n");
-        return 1;
+        printf("\n");
     }
+#ifdef CEST_ENABLE_LEAK_DETECTION
+    printf("\n" CEST_CLR_BOLD "Memory:" CEST_CLR_RESET "\n");
+    if (_cest_alloc_count == _cest_free_count) {
+        printf("  " CEST_CLR_GREEN "All %lld allocations freed!" CEST_CLR_RESET "\n", _cest_alloc_count);
+    } else {
+        long long leaked = _cest_alloc_count - _cest_free_count;
+        printf("  " CEST_CLR_RED "Memory leak: %lld bytes" CEST_CLR_RESET "\n", leaked);
+    }
+#endif
+    printf("\n");
+    return _cest_global_stats.failed > 0 ? 1 : 0;
 }
 
 // Backwards compatibility
