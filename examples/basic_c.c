@@ -6,7 +6,8 @@ static double divide(double a, double b) { return b != 0 ? a / b : 0; }
 static int nums[] = {1, 2, 3};
 static const char* strs[] = {"hello", "world"};
 
-int main() {
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
     describe("C Basic Types", {
         it("should handle integers", {
             expect(2 + 2).toBe(4);

@@ -13,7 +13,10 @@ Matchers are functions that verify values. Cest provides a fluent API through `e
 | `toBeNull()` | Checks if a pointer is `NULL` or `nil` | pointer, id |
 | `toBeGreaterThan(x)` | Checks if the value is greater than `x` | int, double |
 | `toBeLessThan(x)` | Checks if the value is less than `x` | int, double |
+| `toBeInRange(min, max)` | Checks if the value is within range | int, double |
 | `toContain(substring)` | Checks if a string contains a sub-string | string |
+| `toStartWith(prefix)` | Checks if a string starts with prefix | string |
+| `toEndWith(suffix)` | Checks if a string ends with suffix | string |
 | `toBeCloseTo(val, prec)` | Compares doubles with specific precision | double |
 | `toEqualArray(x, len)` | Compares two memory regions | array |
 
@@ -26,6 +29,7 @@ expect(10).toBe(10);
 expect(3.14).toBeCloseTo(3.14, 0.01);
 expect(100).toBeGreaterThan(50);
 expect(5).toBeLessThan(10);
+expect(7).toBeInRange(1, 10);
 ```
 
 ### Strings
@@ -33,6 +37,8 @@ expect(5).toBeLessThan(10);
 ```c
 expect("hello").toEqual("hello");
 expect("hello world").toContain("world");
+expect("hello world").toStartWith("hello");
+expect("hello world").toEndWith("world");
 expect("").toBeFalsy();
 expect("non-empty").toBeTruthy();
 ```

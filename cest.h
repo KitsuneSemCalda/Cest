@@ -139,8 +139,14 @@ CEST_WEAK pthread_mutex_t _cest_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // ============================================================================
 // Leak Detection (optional - enable with CEST_ENABLE_LEAK_DETECTION)
+// Automatically disabled when sanitizers are active to avoid conflicts
 // ============================================================================
-#ifdef CEST_ENABLE_LEAK_DETECTION
+#if defined(CEST_ENABLE_LEAK_DETECTION) && !defined(__SANITIZE_ADDRESS__) && !defined(__has_feature)
+#  if !__has_feature(address_sanitizer) && !__has_feature(thread_sanitizer) && !__has_feature(memory_sanitizer)
+#    define _CEST_LEAK_DETECTION_ENABLED
+#  endif
+#endif
+#ifdef _CEST_LEAK_DETECTION_ENABLED
 CEST_WEAK long long _cest_alloc_count = 0;
 CEST_WEAK long long _cest_free_count = 0;
 
@@ -276,6 +282,13 @@ static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match,
             double diff = _CEST_ABS(_cest_ctx.actual.as.d - expected.as.d);
             printf("    \033[90mDiff: %g\033[0m\n", diff);
         }
+        if (_cest_ctx.actual.type == CEST_TYPE_ARRAY && expected.type == CEST_TYPE_ARRAY) {
+            if (_cest_ctx.actual.len != expected.len) {
+                printf("    \033[90mLength mismatch: %d vs %d\033[0m\n", _cest_ctx.actual.len, expected.len);
+            } else {
+                printf("    \033[90mArrays differ in content\033[0m\n");
+            }
+        }
         printf("    \033[90m(%s:%d)\033[0m\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
@@ -345,6 +358,36 @@ static inline int match_lt(cest_value_t a, cest_value_t b, int* diff_pos) {
     return 0;
 }
 
+static inline int match_in_range(cest_value_t a, cest_value_t min, cest_value_t max, int* diff_pos) {
+    (void)diff_pos;
+    if (a.type == CEST_TYPE_INT && min.type == CEST_TYPE_INT && max.type == CEST_TYPE_INT) {
+        return a.as.i >= min.as.i && a.as.i <= max.as.i;
+    }
+    if (a.type == CEST_TYPE_DOUBLE && min.type == CEST_TYPE_DOUBLE && max.type == CEST_TYPE_DOUBLE) {
+        return a.as.d >= min.as.d && a.as.d <= max.as.d;
+    }
+    return 0;
+}
+
+static inline int match_start_with(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)diff_pos;
+    if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) {
+        return strncmp(a.as.s, b.as.s, strlen(b.as.s)) == 0;
+    }
+    return 0;
+}
+
+static inline int match_end_with(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)diff_pos;
+    if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) {
+        size_t len_a = strlen(a.as.s);
+        size_t len_b = strlen(b.as.s);
+        if (len_b > len_a) return 0;
+        return strcmp(a.as.s + len_a - len_b, b.as.s) == 0;
+    }
+    return 0;
+}
+
 static inline int match_contain(cest_value_t a, cest_value_t b, int* diff_pos) {
     (void)diff_pos;
     if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) return strstr(a.as.s, b.as.s) != NULL;
@@ -358,6 +401,9 @@ typedef struct {
     void (*_toBeGreaterThan)(cest_value_t expected, const char* expected_expr);
     void (*_toBeLessThan)(cest_value_t expected, const char* expected_expr);
     void (*_toContain)(cest_value_t expected, const char* expected_expr);
+    void (*_toBeInRange)(cest_value_t min, cest_value_t max, const char* range_expr);
+    void (*_toStartWith)(cest_value_t expected, const char* expected_expr);
+    void (*_toEndWith)(cest_value_t expected, const char* expected_expr);
     void (*_toBeNull)(void);
     void (*_toBeTruthy)(void);
     void (*_toBeFalsy)(void);
@@ -370,6 +416,22 @@ static inline void b_toEqualArray(cest_value_t e, const char* ee) { _cest_assert
 static inline void b_toBeGreaterThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_gt, "to be greater than", ee); }
 static inline void b_toBeLessThan(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_lt, "to be less than", ee); }
 static inline void b_toContain(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_contain, "to contain", ee); }
+static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char* re) {
+    // Custom assert for range
+    int passed = match_in_range(_cest_ctx.actual, min, max, NULL);
+    if (passed) {
+        printf("  \033[32m✓\033[0m %s to be in range %s\n", _cest_ctx.actual_expr, re);
+        _cest_global_stats.passed++;
+    } else {
+        printf("  \033[31m✕ %s to be in range\033[0m\n", _cest_ctx.actual_expr);
+        printf("    \033[32mExpected range: %s\033[0m\n", re);
+        printf("    \033[31mReceived "); _cest_print_value(_cest_ctx.actual); printf("\033[0m\n");
+        printf("    \033[90m(%s:%d)\033[0m\n", _cest_ctx.file, _cest_ctx.line);
+        _cest_global_stats.failed++;
+    }
+}
+static inline void b_toStartWith(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_start_with, "to start with", ee); }
+static inline void b_toEndWith(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_end_with, "to end with", ee); }
 static inline void b_toBeNull(void) { _cest_assert_impl(cest_ptr(NULL), match_eq, "to be null", "NULL"); }
 static inline void b_toBeTruthy(void) { 
     bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && _cest_ctx.actual.as.b) || 
@@ -416,6 +478,9 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
     ._toBeGreaterThan = b_toBeGreaterThan,
     ._toBeLessThan = b_toBeLessThan,
     ._toContain = b_toContain,
+    ._toBeInRange = b_toBeInRange,
+    ._toStartWith = b_toStartWith,
+    ._toEndWith = b_toEndWith,
     ._toBeNull = b_toBeNull,
     ._toBeTruthy = b_toBeTruthy,
     ._toBeFalsy = b_toBeFalsy,
@@ -431,6 +496,9 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
 #define toBeGreaterThan(x) _toBeGreaterThan(cest_value(x), #x)
 #define toBeLessThan(x) _toBeLessThan(cest_value(x), #x)
 #define toContain(x) _toContain(cest_value(x), #x)
+#define toBeInRange(min, max) _toBeInRange(cest_value(min), cest_value(max), #min " to " #max)
+#define toStartWith(x) _toStartWith(cest_value(x), #x)
+#define toEndWith(x) _toEndWith(cest_value(x), #x)
 #define toBeNull() _toBeNull()
 #define toBeTruthy() _toBeTruthy()
 #define toBeFalsy() _toBeFalsy()
@@ -456,7 +524,9 @@ static inline void _cest_print_result(int passed, const char* expr) {
 
 #define describe(name, block) do { \
     printf("\n" CEST_CLR_BOLD "● %s" CEST_CLR_RESET "\n", name); \
+    _CEST_RUN_BEFORE_ALL(); \
     block \
+    _CEST_RUN_AFTER_ALL(); \
 } while (0)
 
 #define test(name, block) do { \
@@ -470,26 +540,41 @@ static inline void _cest_print_result(int passed, const char* expr) {
     } \
 } while (0)
 
-#define it(name, block) test(name, block)
+#define bench(name, block) do { \
+    clock_t _bench_start = clock(); \
+    for(int _i = 0; _i < 1000; _i++) { block } \
+    clock_t _bench_end = clock(); \
+    double _bench_time = (double)(_bench_end - _bench_start) / CLOCKS_PER_SEC; \
+    printf("  " CEST_CLR_BLUE "⚡ %s: %.6fs total, %.6fs avg" CEST_CLR_RESET "\n", name, _bench_time, _bench_time / 1000); \
+} while (0)
 
-// ============================================================================
-// Hooks (beforeEach/afterEach) - disabled with CEST_NO_HOOKS
+#define it(name, block) test(name, block)
 // ============================================================================
 #ifndef CEST_NO_HOOKS
 typedef void (*cest_hook_fn)(void);
 static cest_hook_fn _cest_before_each_fn __attribute__((unused)) = NULL;
 static cest_hook_fn _cest_after_each_fn __attribute__((unused)) = NULL;
+static cest_hook_fn _cest_before_all_fn __attribute__((unused)) = NULL;
+static cest_hook_fn _cest_after_all_fn __attribute__((unused)) = NULL;
 
 #define beforeEach(fn) do { _cest_before_each_fn = fn; } while (0)
 #define afterEach(fn) do { _cest_after_each_fn = fn; } while (0)
+#define beforeAll(fn) do { _cest_before_all_fn = fn; } while (0)
+#define afterAll(fn) do { _cest_after_all_fn = fn; } while (0)
 
 #define _CEST_RUN_BEFORE_EACH() do { if (_cest_before_each_fn) _cest_before_each_fn(); } while(0)
 #define _CEST_RUN_AFTER_EACH() do { if (_cest_after_each_fn) _cest_after_each_fn(); } while(0)
+#define _CEST_RUN_BEFORE_ALL() do { if (_cest_before_all_fn) _cest_before_all_fn(); } while(0)
+#define _CEST_RUN_AFTER_ALL() do { if (_cest_after_all_fn) _cest_after_all_fn(); } while(0)
 #else
 #define beforeEach(fn)
 #define afterEach(fn)
+#define beforeAll(fn)
+#define afterAll(fn)
 #define _CEST_RUN_BEFORE_EACH()
 #define _CEST_RUN_AFTER_EACH()
+#define _CEST_RUN_BEFORE_ALL()
+#define _CEST_RUN_AFTER_ALL()
 #endif
 
 // ============================================================================
@@ -662,7 +747,7 @@ static inline int cest_result() {
         if (_cest_global_stats.skipped > 0) printf("\n  " CEST_CLR_YELLOW "Skipped: %d" CEST_CLR_RESET, _cest_global_stats.skipped);
         printf("\n");
     }
-#ifdef CEST_ENABLE_LEAK_DETECTION
+#ifdef _CEST_LEAK_DETECTION_ENABLED
     printf("\n" CEST_CLR_BOLD "Memory:" CEST_CLR_RESET "\n");
     if (_cest_alloc_count == _cest_free_count) {
         printf("  " CEST_CLR_GREEN "All %lld allocations freed!" CEST_CLR_RESET "\n", _cest_alloc_count);

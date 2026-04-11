@@ -60,7 +60,10 @@ expect_array(a, 3).toEqualArray(b, 3);
 | `toEqual(x)` | `expect(x).toEqual(y)` |
 | `toBeGreaterThan(x)` | `expect(x).toBeGreaterThan(y)` |
 | `toBeLessThan(x)` | `expect(x).toBeLessThan(y)` |
+| `toBeInRange(min, max)` | `expect(x).toBeInRange(1, 10)` |
 | `toContain(x)` | `expect(x).toContain(substring)` |
+| `toStartWith(x)` | `expect(str).toStartWith(prefix)` |
+| `toEndWith(x)` | `expect(str).toEndWith(suffix)` |
 | `toBeNull()` | `expect(ptr).toBeNull()` |
 | `toBeTruthy()` | `expect(val).toBeTruthy()` |
 | `toBeFalsy()` | `expect(val).toBeFalsy()` |
@@ -68,6 +71,64 @@ expect_array(a, 3).toEqualArray(b, 3);
 | `toEqualArray(x, len)` | `expect_array(arr, n).toEqualArray(arr2, n)` |
 
 ---
+
+## Hooks
+
+Hooks allow you to run code before and after tests.
+
+### beforeAll(fn)
+### afterAll(fn)
+
+Run once per test suite.
+
+```c
+void setup() { /* setup code */ }
+void teardown() { /* cleanup code */ }
+
+beforeAll(setup);
+afterAll(teardown);
+
+describe("Suite", {
+    it("test 1", { /* ... */ });
+    it("test 2", { /* ... */ });
+});
+```
+
+### beforeEach(fn)
+### afterEach(fn)
+
+Run before/after each test in a suite.
+
+```c
+void reset_state() { /* reset between tests */ }
+
+describe("Suite", {
+    beforeEach(reset_state);
+    
+    it("test 1", { /* ... */ });
+    it("test 2", { /* ... */ });
+});
+```
+
+**Note:** Hooks are disabled with `CEST_NO_HOOKS`.
+
+---
+
+## Benchmarking
+
+### bench(name, block)
+
+Simple performance measurement macro.
+
+```c
+describe("Performance", {
+    bench("addition", {
+        volatile int x = 1 + 1;
+    });
+});
+```
+
+Executes the block 1000 times and reports total/average time.
 
 ## Functions
 
@@ -136,6 +197,8 @@ int main() {
     return cest_result();
 }
 ```
+
+**Note:** Automatically disabled when AddressSanitizer, ThreadSanitizer, or MemorySanitizer are active to avoid conflicts.
 
 ---
 

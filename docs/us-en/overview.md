@@ -23,6 +23,9 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 - **Expressive syntax**: Fluent API inspired by Jest
 - **No dependencies**: No external libraries required
 - **Multi-language**: Works with C, C++, Objective-C, and Objective-C++
+- **Hooks support**: beforeAll/afterAll/beforeEach/afterEach
+- **Built-in benchmarking**: Simple performance measurement
+- **Sanitizer compatible**: Works seamlessly with ASan, TSan, MSan
 
 ## Documentation
 

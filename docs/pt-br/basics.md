@@ -55,7 +55,53 @@ describe("Calculadora", {
     describe("Multiplicação", {
         it("por zero", { expect(5*0).toBe(0); });
     });
+## Hooks
+
+Hooks permitem executar código de setup e cleanup antes/depois dos testes.
+
+```c
+void setup() { printf("Configurando...\n"); }
+void cleanup() { printf("Limpando...\n"); }
+
+beforeAll(setup);
+afterAll(cleanup);
+
+describe("Testes de Banco", {
+    beforeEach(setup);  // Executa antes de cada teste
+    afterEach(cleanup); // Executa depois de cada teste
+    
+    it("conecta", {
+        expect(conectar_bd()).toBeTruthy();
+    });
+    
+    it("consulta", {
+        expect(consultar_bd("SELECT 1")).toBeTruthy();
+    });
 });
+```
+
+## Benchmarking
+
+Medição simples de performance com a macro `bench`.
+
+```c
+describe("Performance", {
+    bench("concatenação de string", {
+        char buffer[100];
+        sprintf(buffer, "%s%s", "hello", "world");
+    });
+    
+    bench("operações matemáticas", {
+        volatile double x = 3.14159 * 2.71828;
+    });
+});
+```
+
+Saída:
+```
+● Performance
+  ⚡ concatenação de string: 0.000015s total, 0.000000s avg
+  ⚡ operações matemáticas: 0.000012s total, 0.000000s avg
 ```
 
 ## Ver também

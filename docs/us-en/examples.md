@@ -196,6 +196,91 @@ Compile:
 gcc -o suite main.c test_math.c test_string.c
 ```
 
+## Hooks and Setup
+
+```c
+#include "cest.h"
+
+int counter = 0;
+
+void setup() {
+    counter = 0;
+    printf("Setup called\n");
+}
+
+void teardown() {
+    printf("Teardown called, counter = %d\n", counter);
+}
+
+int main() {
+    beforeAll(setup);
+    afterAll(teardown);
+    
+    describe("Counter Tests", {
+        beforeEach(setup);  // Reset counter before each test
+        
+        it("should increment", {
+            counter++;
+            expect(counter).toEqual(1);
+        });
+        
+        it("should increment again", {
+            counter += 2;
+            expect(counter).toEqual(2);
+        });
+    });
+    
+    return cest_result();
+}
+```
+
+## Benchmarking
+
+```c
+#include "cest.h"
+
+int main() {
+    describe("Performance Tests", {
+        bench("simple addition", {
+            volatile int x = 1 + 1;
+        });
+        
+        bench("string copy", {
+            char buffer[100];
+            strcpy(buffer, "hello world");
+        });
+        
+        bench("math operations", {
+            volatile double x = 3.14159 * 2.71828 / 1.41421;
+        });
+    });
+    
+    return cest_result();
+}
+```
+
+## New Matchers
+
+```c
+#include "cest.h"
+
+int main() {
+    describe("New Matchers", {
+        it("range checks", {
+            expect(5).toBeInRange(1, 10);
+            expect(3.14).toBeInRange(3.0, 4.0);
+        });
+        
+        it("string prefixes/suffixes", {
+            expect("hello world").toStartWith("hello");
+            expect("hello world").toEndWith("world");
+        });
+    });
+    
+    return cest_result();
+}
+```
+
 ## See also
 
 - [Matchers](./matchers.md)

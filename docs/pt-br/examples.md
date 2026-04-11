@@ -196,6 +196,91 @@ Compile:
 gcc -o suite main.c test_math.c test_string.c
 ```
 
+## Hooks e Setup
+
+```c
+#include "cest.h"
+
+int contador = 0;
+
+void setup() {
+    contador = 0;
+    printf("Setup chamado\n");
+}
+
+void cleanup() {
+    printf("Cleanup chamado, contador = %d\n", contador);
+}
+
+int main() {
+    beforeAll(setup);
+    afterAll(cleanup);
+    
+    describe("Testes de Contador", {
+        beforeEach(setup);  // Reseta contador antes de cada teste
+        
+        it("deve incrementar", {
+            contador++;
+            expect(contador).toEqual(1);
+        });
+        
+        it("deve incrementar novamente", {
+            contador += 2;
+            expect(contador).toEqual(2);
+        });
+    });
+    
+    return cest_result();
+}
+```
+
+## Benchmarking
+
+```c
+#include "cest.h"
+
+int main() {
+    describe("Testes de Performance", {
+        bench("adição simples", {
+            volatile int x = 1 + 1;
+        });
+        
+        bench("cópia de string", {
+            char buffer[100];
+            strcpy(buffer, "hello world");
+        });
+        
+        bench("operações matemáticas", {
+            volatile double x = 3.14159 * 2.71828 / 1.41421;
+        });
+    });
+    
+    return cest_result();
+}
+```
+
+## Novos Matchers
+
+```c
+#include "cest.h"
+
+int main() {
+    describe("Novos Matchers", {
+        it("verificação de intervalos", {
+            expect(5).toBeInRange(1, 10);
+            expect(3.14).toBeInRange(3.0, 4.0);
+        });
+        
+        it("prefixos/sufixos de string", {
+            expect("hello world").toStartWith("hello");
+            expect("hello world").toEndWith("world");
+        });
+    });
+    
+    return cest_result();
+}
+```
+
 ## Ver também
 
 - [Matchers](./matchers.md)

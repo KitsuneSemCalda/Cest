@@ -92,7 +92,58 @@ clang -x objective-c -o test test.m -lobjc
 
 ---
 
-## Demo
+## Advanced Features
+
+### Hooks
+
+Setup and teardown code for tests:
+
+```c
+void setup() { /* initialize */ }
+void teardown() { /* cleanup */ }
+
+beforeAll(setup);
+afterAll(teardown);
+
+describe("Database Tests", {
+    beforeEach(setup);
+    afterEach(teardown);
+    
+    it("connects", {
+        expect(connect_db()).toBeTruthy();
+    });
+});
+```
+
+### Benchmarking
+
+Simple performance measurement:
+
+```c
+describe("Performance", {
+    bench("string operations", {
+        char buffer[100];
+        sprintf(buffer, "test %d", 42);
+    });
+});
+```
+
+Output:
+```
+● Performance
+  ⚡ string operations: 0.000015s total, 0.000000s avg
+```
+
+### CLI Filtering
+
+Run specific tests from command line:
+
+```bash
+./test "Math"    # Run only tests containing "Math"
+./test           # Run all tests
+```
+
+---
 
 ![Cest Demo](assets/basic_c.gif)
 ![Cest Demo](assets/basic_cpp.gif)
@@ -109,6 +160,9 @@ clang -x objective-c -o test test.m -lobjc
 - **Colorized Output**: Instant visual feedback in your terminal.
 - **Type-Safe**: Uses `_Generic` (C11) or function overloading (C++) for automatic type handling.
 - **Multi-file Support**: Compile multiple `.c` test files and Cest unifies results.
+- **Hooks Support**: `beforeAll`, `afterAll`, `beforeEach`, `afterEach` for setup/cleanup.
+- **Built-in Benchmarking**: Simple performance measurement with `bench` macro.
+- **Sanitizer Compatible**: Works seamlessly with ASan, TSan, MSan.
 
 ---
 
@@ -122,8 +176,12 @@ clang -x objective-c -o test test.m -lobjc
 | `toBeNull()` | Checks if a pointer is `NULL` or `nil`. |
 | `toBeGreaterThan(x)` | Checks if the value is greater than `x`. |
 | `toBeLessThan(x)` | Checks if the value is less than `x`. |
+| `toBeInRange(min, max)` | Checks if the value is within range. |
 | `toContain(substring)` | Checks if a string contains a sub-string. |
+| `toStartWith(prefix)` | Checks if a string starts with prefix. |
+| `toEndWith(suffix)` | Checks if a string ends with suffix. |
 | `toBeCloseTo(val, prec)` | Compares doubles with specific precision. |
+| `toEqualArray(arr, len)` | Compares two memory regions. |
 
 ---
 
