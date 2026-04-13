@@ -536,7 +536,7 @@ static inline void _cest_print_result(int passed, const char* expr) {
     } else { \
         _cest_test_start_time = clock(); \
         printf("  %s\n", name); \
-        block \
+        (void)(block); \
     } \
 } while (0)
 
