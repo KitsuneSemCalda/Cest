@@ -284,4 +284,7 @@ int main() {
 ## Ver também
 
 - [Matchers](./matchers.md)
-- [Limitations](./limitations.md)
+- [Matchers Customizados](./custom_matchers.md)
+- [Skip e Only](./skip_only.md)
+- [Referência de API](./api.md)
+- [Limitações](./limitations.md)

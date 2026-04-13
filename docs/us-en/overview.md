@@ -26,13 +26,48 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 - **Hooks support**: beforeAll/afterAll/beforeEach/afterEach
 - **Built-in benchmarking**: Simple performance measurement
 - **Sanitizer compatible**: Works seamlessly with ASan, TSan, MSan
+- **Extensible**: Create custom matchers for domain-specific assertions
+- **Flexible execution**: Skip/Only modifiers for focused testing
+- **CI/CD ready**: JUnit XML and JSON output formats
+
+## Features
+
+### Testing
+- **Describe/It syntax** - Familiar test structure like Jest
+- **Multiple matchers** - Equality, comparison, string, array operations
+- **Test hooks** - Setup/teardown with beforeAll, afterAll, beforeEach, afterEach
+- **Custom matchers** - Extend Cest with domain-specific assertions
+- **Test selection** - Skip/Only modifiers for focused development
+
+### Quality & Safety
+- **Memory leak detection** - Integrated with ASan, MSan, Valgrind
+- **Sanitizer support** - Works with all major sanitizers (ASan, TSan, MSan, UBSan)
+- **Benchmarking** - Built-in performance measurement tools
+- **Thread-safe testing** - Support for concurrent tests
+
+### DevOps & CI
+- **Multiple output formats** - Terminal, JUnit XML, JSON
+- **CI environment detection** - Auto-detection of GitHub Actions, GitLab CI, Jenkins
+- **Exit codes** - Standard exit status for script integration
+- **Valgrind integration** - Memory debugging workflows
 
 ## Documentation
 
+### Getting Started
 - [Installation](./installation.md)
 - [Basics](./basics.md)
+- [Examples](./examples.md)
+
+### Core Concepts
 - [Matchers](./matchers.md)
 - [Types](./types.md)
-- [API](./api.md)
-- [Examples](./examples.md)
+- [API Reference](./api.md)
+
+### Advanced Topics
+- [Custom Matchers](./custom_matchers.md) - Extend with domain-specific assertions
+- [Skip and Only](./skip_only.md) - Test selection and focused debugging
+- [Leak Detection](./leak_detection.md) - Memory safety with ASan/Valgrind
+- [CI/CD Integration](./ci_integration.md) - Setup for GitHub Actions, GitLab, Jenkins
+
+### Reference
 - [Limitations](./limitations.md)

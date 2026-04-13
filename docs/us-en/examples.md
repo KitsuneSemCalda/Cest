@@ -281,7 +281,241 @@ int main() {
 }
 ```
 
+## Custom Matchers
+
+Create domain-specific matchers extending Cest with custom assertions:
+
+```c
+#include "cest.h"
+
+// Simple custom matcher - palindrome checker
+CEST_MATCHER(isPalindrome, {
+    if (actual.type != CEST_TYPE_STRING) return 0;
+    
+    const char* str = actual.value.s;
+    int len = strlen(str);
+    for (int i = 0; i < len / 2; i++) {
+        if (str[i] != str[len - 1 - i]) {
+            return 0;
+        }
+    }
+    return 1;
+})
+
+// Matcher with arguments - range check
+CEST_MATCHER_WITH_ARGS(isInRange,
+    int min = expected.value.i; int max = actual.value.i,
+    {
+        if (actual.type != CEST_TYPE_INT) return 0;
+        int val = actual.value.i;
+        return val >= min && val <= max;
+    }
+)
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+
+    describe("Custom Matchers", {
+        it("detects palindromes", {
+            expect("racecar").isPalindrome();
+            expect("noon").isPalindrome();
+        });
+
+        it("checks ranges", {
+            expect(50).isInRange(0, 100);
+            expect(25).isInRange(0, 100);
+        });
+    });
+
+    return cest_result();
+}
+```
+
+**Compile:**
+```bash
+gcc -o test examples/advanced/custom_matchers.c
+./test
+```
+
+For detailed guide, see [Custom Matchers Documentation](./custom_matchers.md)
+
+---
+
+## Skip and Only Test Modifiers
+
+Control test execution for focused development:
+
+```c
+#include "cest.h"
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+
+    describe("Selective Testing", {
+        it("normal test runs", {
+            expect(2 + 2).toEqual(4);
+        });
+
+        skip("known issue - to be fixed", {
+            // This test won't execute
+            expect(buggy_function()).toEqual(expected);
+        });
+
+        it("another test runs", {
+            expect(3 * 4).toEqual(12);
+        });
+    });
+
+    return cest_result();
+}
+```
+
+**Compile with skip/only support:**
+```bash
+gcc -DCEST_ENABLE_SKIP -o test examples/skip_only.c
+./test
+```
+
+**Using `only()` for focused debugging:**
+```c
+only("focus on this test", {
+    // Runs ONLY this test, skipping all others
+    expect(critical_function()).toEqual(42);
+});
+```
+
+See [Skip and Only Documentation](./skip_only.md) for workflow patterns.
+
+---
+
+## Memory Leak Detection
+
+Use ASan or Valgrind to detect memory leaks:
+
+```c
+#include "cest.h"
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    char* name;
+    int value;
+} Item;
+
+Item* create_item(const char* name, int value) {
+    Item* item = (Item*)malloc(sizeof(Item));
+    if (!item) return NULL;
+    
+    item->name = (char*)malloc(strlen(name) + 1);
+    if (!item->name) {
+        free(item);
+        return NULL;
+    }
+    
+    strcpy(item->name, name);
+    item->value = value;
+    return item;
+}
+
+void free_item(Item* item) {
+    if (!item) return;
+    free(item->name);
+    free(item);
+}
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+
+    describe("Memory Safety", {
+        it("allocates without leaks", {
+            Item* item = create_item("test", 42);
+            expect(item).toBeTruthy();
+            expect(item->value).toEqual(42);
+            free_item(item);  // Clean up!
+        });
+    });
+
+    return cest_result();
+}
+```
+
+**Compile with AddressSanitizer:**
+```bash
+gcc -g -fsanitize=address -o test examples/leak_detection.c
+./test
+```
+
+**Or with Valgrind:**
+```bash
+gcc -g -o test examples/leak_detection.c
+valgrind --leak-check=full ./test
+```
+
+See [Leak Detection Guide](./leak_detection.md) for detailed workflows.
+
+---
+
+## CI/CD Integration
+
+Output test results in JUnit XML or JSON format for CI pipelines:
+
+```c
+#include "cest.h"
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+
+    describe("Calculator", {
+        it("adds numbers", {
+            expect(2 + 3).toEqual(5);
+        });
+
+        it("multiplies numbers", {
+            expect(4 * 5).toEqual(20);
+        });
+
+        it("handles strings", {
+            expect("hello").toContain("ello");
+        });
+    });
+
+    return cest_result();
+}
+```
+
+**Generate JUnit XML:**
+```bash
+gcc -o test examples/ci_integration.c
+./test --junit report.xml
+```
+
+**Generate JSON:**
+```bash
+./test --json report.json
+```
+
+**GitHub Actions integration:**
+```yaml
+- name: Run tests
+  run: gcc -o test examples/ci_integration.c && ./test --junit report.xml
+
+- name: Publish results
+  uses: dorny/test-reporter@v1
+  with:
+    path: report.xml
+    reporter: java-junit
+```
+
+See [CI/CD Integration Guide](./ci_integration.md) for complete setup examples including Jenkins, GitLab CI, and more.
+
+---
+
 ## See also
 
 - [Matchers](./matchers.md)
+- [Custom Matchers](./custom_matchers.md)
+- [Skip and Only](./skip_only.md)
+- [Leak Detection](./leak_detection.md)
+- [CI/CD Integration](./ci_integration.md)
+- [API Reference](./api.md)
 - [Limitations](./limitations.md)
