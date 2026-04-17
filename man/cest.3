@@ -1,0 +1,139 @@
+.Dd April 17, 2026
+.Dt CEST 3
+.Os
+.Sh NAME
+.Nm Cest ,
+.Nm describe ,
+.Nm it ,
+.Nm test ,
+.Nm expect ,
+.Nm expect_array ,
+.Nm bench ,
+.Nm cest_init ,
+.Nm cest_result
+.Nd A minimalist, header-only unit testing framework for C, C++, and Objective-C
+.Sh SYNOPSIS
+.In cest.h
+.Sh DESCRIPTION
+The
+.Nm
+framework is designed to be expressive, lightweight, and easy to integrate. It provides a fluent API inspired by modern JavaScript testing tools like Jest.
+.Pp
+To use
+.Nm ,
+simply include the
+.In cest.h
+header in your test files. Since it is a header-only library, no separate linking is required for the core functionality.
+.Sh MACROS
+.Bl -tag -width "xxxxxxxxxx"
+.It Fn describe "const char *name" "block"
+Defines a test suite. The
+.Fa block
+is a block of code (usually enclosed in braces) containing individual tests.
+.It Fn test "const char *name" "block"
+.It Fn it "const char *name" "block"
+Defines an individual test.
+.Nm it
+is an alias for
+.Nm test .
+.It Fn expect "actual"
+Starts an assertion chain with the actual value. Context is automatically managed.
+.It Fn expect_array "actual" "size_t len"
+Starts an assertion for an array of length
+.Fa len .
+.El
+.Sh MATCHERS
+Commonly used matchers:
+.Bl -tag -width "xxxxxxxxxx"
+.It Fn toBe "expected"
+Checks for strict equality.
+.It Fn toEqual "expected"
+Alias for
+.Nm toBe .
+.It Fn toBeGreaterThan "expected"
+Checks if actual > expected.
+.It Fn toBeLessThan "expected"
+Checks if actual < expected.
+.It Fn toBeInRange "min" "max"
+Checks if actual is within [min, max].
+.It Fn toBeNull
+Checks if a pointer is NULL.
+.It Fn toBeDefined
+Checks if a pointer is not NULL.
+.It Fn toBeUndefined
+Checks if a pointer is NULL.
+.It Fn toBeTruthy
+Checks if a value evaluates to true.
+.It Fn toBeFalsy
+Checks if a value evaluates to false.
+.It Fn toContain "substring"
+Checks if a string contains another substring.
+.It Fn toBeCloseTo "value" "precision"
+Compares doubles with specific precision.
+.El
+.Sh HOOKS
+.Bl -bullet
+.It
+.Fn beforeEach "void (*fn)(void)"
+Runs before each test in the suite.
+.It
+.Fn afterEach "void (*fn)(void)"
+Runs after each test in the suite.
+.It
+.Fn beforeAll "void (*fn)(void)"
+Runs once before all tests in the suite.
+.It
+.Fn afterAll "void (*fn)(void)"
+Runs once after all tests in the suite.
+.El
+.Sh CONFIGURATION
+Define these preprocessor macros before including
+.In cest.h :
+.Bl -tag -width "xxxxxxxx"
+.It Dv CEST_ENABLE_LEAK_DETECTION
+Enables memory leak detection using internal wrappers.
+.It Dv CEST_ENABLE_SIGNAL_HANDLER
+Enables crash diagnostics (SIGSEGV, etc.). Requires calling
+.Fn cest_init
+in
+.Fn main .
+.It Dv CEST_PREFIX
+Enables namespaced macros (e.g.,
+.Nm cest_describe ,
+.Nm cest_expect ).
+.It Dv CEST_NO_COLORS
+Disables colored terminal output (can also be passed as -DCEST_NO_COLORS to the compiler).
+.It Dv CEST_THREAD_SAFE
+Enables thread safety (requires pthreads).
+.El
+.Sh FUNCTIONS
+.Bl -tag -width "xxxxxxx"
+.It Fn cest_init "int argc" "char **argv"
+Initializes the framework with CLI arguments. Mandatory for test filtering and signal handlers.
+.It Fn cest_result
+Returns 0 if all tests passed, 1 otherwise. Also prints the final summary.
+.El
+.Sh EXAMPLES
+Basic usage:
+.Bd -literal -offset indent
+#include <cest.h>
+
+int main(int argc, char **argv) {
+    cest_init(argc, argv);
+
+    describe("Math Suite", {
+        it("adds properly", {
+            expect(2 + 2).toBe(4);
+        });
+    });
+
+    return cest_result();
+}
+.Ed
+.Sh SEE ALSO
+The online documentation at
+.Lk https://github.com/KitsuneSemCalda/Cest
+.Sh AUTHORS
+The
+.Nm
+framework was created by the Cest contributors.

@@ -191,4 +191,35 @@ endif
 clean:
 	rm -rf $(BUILD_DIR)
 
+# --- Installation ---
+PREFIX ?= /usr/local
+INCLUDEDIR = $(PREFIX)/include
+MANDIR = $(PREFIX)/share/man/man3
+
+MAN_PAGES = man/cest.3 man/describe.3 man/it.3 man/test.3 \
+            man/expect.3 man/expect_array.3 man/bench.3 \
+            man/cest_init.3 man/cest_result.3
+
+install: cest.h $(MAN_PAGES)
+	mkdir -p $(DESTDIR)$(INCLUDEDIR)
+	mkdir -p $(DESTDIR)$(MANDIR)
+	cp cest.h $(DESTDIR)$(INCLUDEDIR)/cest.h
+	for page in $(MAN_PAGES); do \
+		cp $$page $(DESTDIR)$(MANDIR)/; \
+	done
+	chmod 644 $(DESTDIR)$(INCLUDEDIR)/cest.h
+	chmod 644 $(DESTDIR)$(MANDIR)/*.3
+	@echo "Cest installed to $(DESTDIR)$(PREFIX)"
+	@if [ -z "$(DESTDIR)" ] && command -v mandb >/dev/null 2>&1; then \
+		mandb -q; \
+		echo "Manual database updated"; \
+	fi
+
+uninstall:
+	rm -f $(DESTDIR)$(INCLUDEDIR)/cest.h
+	for page in $(MAN_PAGES); do \
+		rm -f $(DESTDIR)$(MANDIR)/$$(basename $$page); \
+	done
+	@echo "Cest removed from $(DESTDIR)$(PREFIX)"
+
 test: run
