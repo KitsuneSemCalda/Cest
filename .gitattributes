@@ -1,0 +1,5 @@
+* linguist-vendored
+*.m linguist-vendored=true
+*.cpp linguist-vendored=true
+*.c linguist-vendored=true
+Makefile linguist-vendored=false
