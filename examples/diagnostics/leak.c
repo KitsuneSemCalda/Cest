@@ -1,4 +1,4 @@
-#include "../cest.h"
+#include "../../cest.h"
 
 int main() {
     describe("Leak Detection Test", {

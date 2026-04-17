@@ -8,11 +8,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <time.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#ifdef CEST_ENABLE_SIGNAL_HANDLER
+#  include <signal.h>
+#endif
 
 #ifdef __OBJC__
 #import <objc/objc.h>
@@ -27,15 +28,17 @@
 // ============================================================================
 // CONFIGURATION MACROS (define before including cest.h)
 // ============================================================================
-// #define CEST_NO_COLORS          // Disable colored output
-// #define CEST_THREAD_SAFE        // Enable thread safety (requires pthreads)
-// #define CEST_NO_CLI             // Disable CLI argument parsing
-// #define CEST_NO_HOOKS           // Disable beforeEach/afterEach hooks
-// #define CEST_ENABLE_ARC         // Enable ARC support for Objective-C
-// #define CEST_ENABLE_SKIP        // Enable skip/only test modifiers
-// #define CEST_ENABLE_FORK        // Enable test isolation with fork()
-// #define CEST_ENABLE_COVERAGE    // Enable gcov coverage integration
+// #define CEST_NO_COLORS             // Disable colored output
+// #define CEST_THREAD_SAFE           // Enable thread safety (requires pthreads)
+// #define CEST_NO_CLI                // Disable CLI argument parsing
+// #define CEST_NO_HOOKS              // Disable beforeEach/afterEach hooks
+// #define CEST_ENABLE_ARC            // Enable ARC support for Objective-C
+// #define CEST_ENABLE_SKIP           // Enable skip/only test modifiers
+// #define CEST_ENABLE_FORK           // Enable test isolation with fork()
+// #define CEST_ENABLE_COVERAGE       // Enable gcov coverage integration
 // #define CEST_ENABLE_LEAK_DETECTION // Enable memory leak detection (disabled if sanitizer active)
+// #define CEST_ENABLE_SIGNAL_HANDLER // Enable crash diagnostics (SIGSEGV, SIGABRT, etc.)
+// #define CEST_PREFIX                // Use cest_ prefix on all public macros
 
 // ============================================================================
 // Automatic Sanitizer Detection (before any configuration)
@@ -336,6 +339,90 @@ static inline int _cest_run_forked_test(cest_test_fn test_fn, char* error_msg, s
 #endif
 
 // ============================================================================
+// Hook Identifiers
+// ============================================================================
+typedef enum {
+    CEST_HOOK_NONE         = 0,
+    CEST_HOOK_BEFORE_EACH  = 1,
+    CEST_HOOK_AFTER_EACH   = 2,
+    CEST_HOOK_BEFORE_ALL   = 3,
+    CEST_HOOK_AFTER_ALL    = 4
+} cest_hook_id_t;
+
+// ============================================================================
+// Signal Handler (crash diagnostics without fork)
+// ============================================================================
+#ifdef CEST_ENABLE_SIGNAL_HANDLER
+static volatile const char* _cest_signal_test_name = NULL;
+static volatile int _cest_in_hook = CEST_HOOK_NONE;
+
+static const char* _cest_signal_name(int sig) {
+    switch(sig) {
+        case SIGSEGV: return "SIGSEGV (Segmentation Fault)";
+        case SIGABRT: return "SIGABRT (Abort)";
+        case SIGFPE:  return "SIGFPE (Floating Point Exception)";
+        case SIGBUS:  return "SIGBUS (Bus Error)";
+        case SIGILL:  return "SIGILL (Illegal Instruction)";
+        default:      return "Unknown Signal";
+    }
+}
+
+static const char* _cest_hook_name(int hook_id) {
+    switch(hook_id) {
+        case CEST_HOOK_BEFORE_EACH: return "beforeEach";
+        case CEST_HOOK_AFTER_EACH:  return "afterEach";
+        case CEST_HOOK_BEFORE_ALL:  return "beforeAll";
+        case CEST_HOOK_AFTER_ALL:   return "afterAll";
+        default: return "unknown hook";
+    }
+}
+
+static void _cest_signal_handler(int sig) {
+    // Use write() instead of printf() — async-signal-safe
+    const char* msg_prefix = "\n  \033[31m✕ CRASH: ";
+    const char* msg_signal = _cest_signal_name(sig);
+    const char* msg_reset = "\033[0m\n";
+    (void)!write(STDERR_FILENO, msg_prefix, strlen(msg_prefix));
+    (void)!write(STDERR_FILENO, msg_signal, strlen(msg_signal));
+    if (_cest_in_hook) {
+        const char* hook_msg = " in hook: ";
+        const char* hook_name = _cest_hook_name(_cest_in_hook);
+        (void)!write(STDERR_FILENO, hook_msg, strlen(hook_msg));
+        (void)!write(STDERR_FILENO, hook_name, strlen(hook_name));
+    }
+    if (_cest_signal_test_name) {
+        const char* test_msg = " during test: ";
+        (void)!write(STDERR_FILENO, test_msg, strlen(test_msg));
+        (void)!write(STDERR_FILENO, (const char*)_cest_signal_test_name, strlen((const char*)_cest_signal_test_name));
+    }
+    (void)!write(STDERR_FILENO, msg_reset, strlen(msg_reset));
+    _exit(128 + sig);
+}
+
+static inline void _cest_install_signal_handlers(void) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = _cest_signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESETHAND; // One-shot: restore default after first signal
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+    sigaction(SIGFPE,  &sa, NULL);
+    sigaction(SIGBUS,  &sa, NULL);
+    sigaction(SIGILL,  &sa, NULL);
+}
+#  define _CEST_SIGNAL_INIT()         _cest_install_signal_handlers()
+#  define _CEST_SIGNAL_SET_TEST(name) (_cest_signal_test_name = (name))
+#  define _CEST_SIGNAL_SET_HOOK(id)   (_cest_in_hook = (id))
+#  define _CEST_SIGNAL_CLEAR_HOOK()   (_cest_in_hook = CEST_HOOK_NONE)
+#else
+#  define _CEST_SIGNAL_INIT()
+#  define _CEST_SIGNAL_SET_TEST(name) ((void)(name))
+#  define _CEST_SIGNAL_SET_HOOK(id)   ((void)(id))
+#  define _CEST_SIGNAL_CLEAR_HOOK()
+#endif
+
+// ============================================================================
 // Stats and Globals
 // ============================================================================
 typedef struct {
@@ -447,9 +534,19 @@ static struct {
     cest_value_t actual;
     cest_value_t expected;
     const char* expected_expr;
+    int valid; // 1 = context is set by expect(), 0 = consumed by assert
 } _cest_ctx;
 
-static int _cest_last_diff_pos __attribute__((unused)) = -1;
+// Reset context to a clean state — prevents stale data leaking between asserts
+static inline void _cest_ctx_reset(void) {
+    _cest_ctx.file = NULL;
+    _cest_ctx.line = 0;
+    _cest_ctx.actual_expr = NULL;
+    memset(&_cest_ctx.actual, 0, sizeof(cest_value_t));
+    memset(&_cest_ctx.expected, 0, sizeof(cest_value_t));
+    _cest_ctx.expected_expr = NULL;
+    _cest_ctx.valid = 0;
+}
 
 static inline void _cest_print_value(cest_value_t v) {
     switch(v.type) {
@@ -503,6 +600,8 @@ static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match,
         printf("    " CEST_CLR_DIM "(%s:%d)" CEST_CLR_RESET "\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
+    fflush(stdout); // Ensure output is visible even if test crashes after this assert
+    _cest_ctx.valid = 0; // Mark context as consumed
 }
 
 // ============================================================================
@@ -619,8 +718,36 @@ static inline int match_regex(cest_value_t a, cest_value_t b, int* diff_pos) {
     return 0;
 }
 
-static inline int match_not(cest_value_t a, cest_value_t b, int* diff_pos) {
-    return !match_eq(a, b, diff_pos);
+static inline int match_truthy(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)b; (void)diff_pos;
+    switch (a.type) {
+        case CEST_TYPE_BOOL:   return a.as.b;
+        case CEST_TYPE_INT:    return a.as.i != 0;
+        case CEST_TYPE_DOUBLE: return a.as.d != 0.0;
+        case CEST_TYPE_STR:    return a.as.s != NULL && strlen(a.as.s) > 0;
+        case CEST_TYPE_PTR:    return a.as.p != NULL;
+#ifdef __OBJC__
+        case CEST_TYPE_OBJC_ID: return a.as.obj != nil;
+#endif
+        default: return 0;
+    }
+}
+
+static inline int match_falsy(cest_value_t a, cest_value_t b, int* diff_pos) {
+    return !match_truthy(a, b, diff_pos);
+}
+
+static inline int match_defined(cest_value_t a, cest_value_t b, int* diff_pos) {
+    (void)b; (void)diff_pos;
+    if (a.type == CEST_TYPE_PTR && a.as.p == NULL) return 0;
+#ifdef __OBJC__
+    if (a.type == CEST_TYPE_OBJC_ID && a.as.obj == nil) return 0;
+#endif
+    return 1;
+}
+
+static inline int match_undefined(cest_value_t a, cest_value_t b, int* diff_pos) {
+    return !match_defined(a, b, diff_pos);
 }
 
 // ============================================================================
@@ -654,30 +781,10 @@ static inline void b_toStartWith(cest_value_t e, const char* ee) { _cest_assert_
 static inline void b_toEndWith(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_end_with, "to end with", ee); }
 static inline void b_toMatch(cest_value_t e, const char* ee) { _cest_assert_impl(e, match_regex, "to match", ee); }
 static inline void b_toBeNull(void) { _cest_assert_impl(cest_ptr(NULL), match_eq, "to be null", "NULL"); }
-static inline void b_toBeTruthy(void) { 
-    bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && _cest_ctx.actual.as.b) || 
-              (_cest_ctx.actual.type == CEST_TYPE_INT && _cest_ctx.actual.as.i != 0) ||
-              (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) > 0) ||
-              (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p != NULL)
-#ifdef __OBJC__
-              || (_cest_ctx.actual.type == CEST_TYPE_OBJC_ID && _cest_ctx.actual.as.obj != nil)
-#endif
-              ;
-    if (ok) { printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be truthy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
-    else { printf("  " CEST_CLR_RED "✕ %s to be falsy but expected truthy" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
-}
-static inline void b_toBeFalsy(void) {
-    bool ok = (_cest_ctx.actual.type == CEST_TYPE_BOOL && !_cest_ctx.actual.as.b) || 
-              (_cest_ctx.actual.type == CEST_TYPE_INT && _cest_ctx.actual.as.i == 0) ||
-              (_cest_ctx.actual.type == CEST_TYPE_STR && strlen(_cest_ctx.actual.as.s) == 0) ||
-              (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p == NULL)
-#ifdef __OBJC__
-              || (_cest_ctx.actual.type == CEST_TYPE_OBJC_ID && _cest_ctx.actual.as.obj == nil)
-#endif
-              ;
-    if (ok) { printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be falsy\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
-    else { printf("  " CEST_CLR_RED "✕ %s to be truthy but expected falsy" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
-}
+static inline void b_toBeTruthy(void) { _cest_assert_impl(cest_bool(true), match_truthy, "to be", "truthy"); }
+static inline void b_toBeFalsy(void) { _cest_assert_impl(cest_bool(false), match_falsy, "to be", "falsy"); }
+static inline void b_toBeDefined(void) { _cest_assert_impl(cest_bool(true), match_defined, "to be", "defined"); }
+static inline void b_toBeUndefined(void) { _cest_assert_impl(cest_bool(true), match_undefined, "to be", "undefined"); }
 static inline void b_toBeCloseTo(double val, double precision) {
     double diff = _CEST_ABS(_cest_ctx.actual.as.d - val);
     if (diff < precision) {
@@ -690,6 +797,8 @@ static inline void b_toBeCloseTo(double val, double precision) {
         printf("    " CEST_CLR_DIM "(%s:%d)" CEST_CLR_RESET "\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
+    fflush(stdout);
+    _cest_ctx.valid = 0;
 }
 static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char* re) {
     int passed = match_in_range(_cest_ctx.actual, min, max, NULL);
@@ -703,24 +812,8 @@ static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char*
         printf("    " CEST_CLR_DIM "(%s:%d)" CEST_CLR_RESET "\n", _cest_ctx.file, _cest_ctx.line);
         _cest_global_stats.failed++;
     }
-}
-static inline void b_toBeDefined(void) {
-    int ok = (_cest_ctx.actual.type != CEST_TYPE_PTR || _cest_ctx.actual.as.p != NULL)
-#ifdef __OBJC__
-           && (_cest_ctx.actual.type != CEST_TYPE_OBJC_ID || _cest_ctx.actual.as.obj != nil)
-#endif
-    ;
-    if (ok) { printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be defined\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
-    else { printf("  " CEST_CLR_RED "✕ %s to be undefined" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
-}
-static inline void b_toBeUndefined(void) {
-    int ok = (_cest_ctx.actual.type == CEST_TYPE_PTR && _cest_ctx.actual.as.p == NULL)
-#ifdef __OBJC__
-           || (_cest_ctx.actual.type == CEST_TYPE_OBJC_ID && _cest_ctx.actual.as.obj == nil)
-#endif
-    ;
-    if (ok) { printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be undefined\n", _cest_ctx.actual_expr); _cest_global_stats.passed++; }
-    else { printf("  " CEST_CLR_RED "✕ %s to be defined" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); _cest_global_stats.failed++; }
+    fflush(stdout);
+    _cest_ctx.valid = 0;
 }
 
 static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
@@ -742,8 +835,8 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
     ._toBeUndefined = b_toBeUndefined
 };
 
-#define expect(x) (_cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_value(x), _cest_bridge)
-#define expect_array(x, len) (_cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_array(x, len), _cest_bridge)
+#define expect(x) (_cest_ctx_reset(), _cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_value(x), _cest_ctx.valid = 1, _cest_bridge)
+#define expect_array(x, len) (_cest_ctx_reset(), _cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_array(x, len), _cest_ctx.valid = 1, _cest_bridge)
 
 #define toEqual(x) _toEqual(cest_value(x), #x)
 #define toBe(x) _toBe(cest_value(x), #x)
@@ -825,6 +918,7 @@ static clock_t _cest_test_start_time __attribute__((unused)) = 0;
 
 #define describe(name, block) do { \
     printf("\n" CEST_CLR_BOLD "● %s" CEST_CLR_RESET "\n", name); \
+    fflush(stdout); \
     _CEST_RUN_BEFORE_ALL(); \
     block \
     _CEST_RUN_AFTER_ALL(); \
@@ -836,11 +930,14 @@ static clock_t _cest_test_start_time __attribute__((unused)) = 0;
         _cest_global_stats.skipped++; \
     } else { \
         _cest_current_test_name = name; \
+        _CEST_SIGNAL_SET_TEST(name); \
         _cest_test_start_time = clock(); \
         printf("  %s\n", name); \
+        fflush(stdout); \
         _CEST_RUN_BEFORE_EACH(); \
         CEST_FORK_TEST(block); \
         _CEST_RUN_AFTER_EACH(); \
+        fflush(stdout); \
     } \
 } while (0)
 
@@ -869,10 +966,28 @@ static cest_hook_fn _cest_after_all_fn __attribute__((unused)) = NULL;
 #define beforeAll(fn) do { _cest_before_all_fn = fn; } while (0)
 #define afterAll(fn) do { _cest_after_all_fn = fn; } while (0)
 
-#define _CEST_RUN_BEFORE_EACH() do { if (_cest_before_each_fn) _cest_before_each_fn(); _CEST_COVERAGE_BEFORE_EACH(); } while(0)
-#define _CEST_RUN_AFTER_EACH() do { if (_cest_after_each_fn) _cest_after_each_fn(); _CEST_COVERAGE_AFTER_EACH(); } while(0)
-#define _CEST_RUN_BEFORE_ALL() do { if (_cest_before_all_fn) _cest_before_all_fn(); } while(0)
-#define _CEST_RUN_AFTER_ALL() do { if (_cest_after_all_fn) _cest_after_all_fn(); } while(0)
+#define _CEST_RUN_BEFORE_EACH() do { \
+    _CEST_SIGNAL_SET_HOOK(CEST_HOOK_BEFORE_EACH); \
+    if (_cest_before_each_fn) _cest_before_each_fn(); \
+    _CEST_SIGNAL_CLEAR_HOOK(); \
+    _CEST_COVERAGE_BEFORE_EACH(); \
+} while(0)
+#define _CEST_RUN_AFTER_EACH() do { \
+    _CEST_SIGNAL_SET_HOOK(CEST_HOOK_AFTER_EACH); \
+    if (_cest_after_each_fn) _cest_after_each_fn(); \
+    _CEST_SIGNAL_CLEAR_HOOK(); \
+    _CEST_COVERAGE_AFTER_EACH(); \
+} while(0)
+#define _CEST_RUN_BEFORE_ALL() do { \
+    _CEST_SIGNAL_SET_HOOK(CEST_HOOK_BEFORE_ALL); \
+    if (_cest_before_all_fn) _cest_before_all_fn(); \
+    _CEST_SIGNAL_CLEAR_HOOK(); \
+} while(0)
+#define _CEST_RUN_AFTER_ALL() do { \
+    _CEST_SIGNAL_SET_HOOK(CEST_HOOK_AFTER_ALL); \
+    if (_cest_after_all_fn) _cest_after_all_fn(); \
+    _CEST_SIGNAL_CLEAR_HOOK(); \
+} while(0)
 #else
 #define beforeEach(fn)
 #define afterEach(fn)
@@ -958,13 +1073,9 @@ static inline void _cest_write_json(void) {
 static inline void _cest_parse_cli_args(int argc, char* argv[]) {
     _CEST_INIT_COLORS();
     
-    // Auto-disable colors in CI unless --colors forced
-    if (_cest_is_ci()) {
-#ifndef CEST_NO_COLORS
-#  undef CEST_NO_COLORS
-#  define CEST_NO_COLORS 1
-#endif
-    }
+    // Note: CI color control is compile-time only.
+    // Use -DCEST_NO_COLORS when building for CI environments.
+    (void)_cest_is_ci();
     
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
@@ -991,7 +1102,12 @@ static inline void _cest_parse_cli_args(int argc, char* argv[]) {
             } else if (strcmp(argv[i], "--json") == 0 && i + 1 < argc) {
                 _cest_json_output = argv[++i];
             } else {
-                _cest_cli_args[_cest_cli_count++] = argv[i];
+                if (_cest_cli_count < (int)(sizeof(_cest_cli_args) / sizeof(_cest_cli_args[0]))) {
+                    _cest_cli_args[_cest_cli_count++] = argv[i];
+                } else {
+                    fprintf(stderr, "Cest: warning: too many CLI arguments (max %d), ignoring '%s'\n",
+                            (int)(sizeof(_cest_cli_args) / sizeof(_cest_cli_args[0])), argv[i]);
+                }
             }
         } else {
             _cest_global_stats.filter_pattern = argv[i];
@@ -1011,9 +1127,9 @@ static inline int _cest_should_run_test(const char* name) {
     return strstr(name, _cest_global_stats.filter_pattern) != NULL;
 }
 
-#define cest_init(argc, argv) _cest_parse_cli_args(argc, argv)
+#define cest_init(argc, argv) do { _cest_parse_cli_args(argc, argv); _CEST_SIGNAL_INIT(); } while(0)
 #else
-#define cest_init(argc, argv)
+#define cest_init(argc, argv) do { _CEST_SIGNAL_INIT(); } while(0)
 #define _cest_has_cli_flag(flag) (0)
 #define _cest_should_run_test(name) (1)
 #endif
@@ -1036,7 +1152,7 @@ static inline int cest_result() {
         printf("\n");
     }
     
-#ifdef _CEST_LEAK_DETECTION_ENABLED
+#ifdef CEST_ENABLE_LEAK_DETECTION
     printf("\n" CEST_CLR_BOLD "Memory:" CEST_CLR_RESET "\n");
     if (_cest_alloc_count == _cest_free_count) {
         printf("  " CEST_CLR_GREEN "All %lld allocations freed!" CEST_CLR_RESET "\n", _cest_alloc_count);
@@ -1066,7 +1182,22 @@ static inline int cest_result() {
     return _cest_global_stats.failed > 0 ? 1 : 0;
 }
 
-// Backwards compatibility
-#define cest_result_old cest_result
+
+
+// ============================================================================
+// Optional Namespaced Macros (define CEST_PREFIX before including cest.h)
+// ============================================================================
+#ifdef CEST_PREFIX
+#  define cest_describe(name, block)    describe(name, block)
+#  define cest_test(name, block)        test(name, block)
+#  define cest_it(name, block)          it(name, block)
+#  define cest_expect(x)                expect(x)
+#  define cest_expect_array(x, len)     expect_array(x, len)
+#  define cest_bench(name, block)       bench(name, block)
+#  define cest_beforeEach(fn)           beforeEach(fn)
+#  define cest_afterEach(fn)            afterEach(fn)
+#  define cest_beforeAll(fn)            beforeAll(fn)
+#  define cest_afterAll(fn)             afterAll(fn)
+#endif
 
 #endif // _CEST_H_

@@ -1,15 +1,13 @@
-#include "cest.h"
+#include "../../cest.h"
 
 int global_value = 0;
 
-int setup(void) {
+void setup(void) {
     global_value = 10;
-    return 0;
 }
 
-int teardown(void) {
+void teardown(void) {
     global_value = 0;
-    return 0;
 }
 
 int main() {

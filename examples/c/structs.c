@@ -1,4 +1,4 @@
-#include "../cest.h"
+#include "../../cest.h"
 
 // Exemplo de uma struct
 typedef struct {

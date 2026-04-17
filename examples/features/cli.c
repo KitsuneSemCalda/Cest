@@ -1,4 +1,4 @@
-#include "cest.h"
+#include "../../cest.h"
 
 int main(int argc, char* argv[]) {
     cest_init(argc, argv);

@@ -11,6 +11,8 @@ Matchers são funções que verificam valores. O Cest fornece matchers fluentes 
 | `toBeTruthy()` | Verifica se o valor é "verdadeiro" | int, double, string, pointer, bool, id |
 | `toBeFalsy()` | Verifica se o valor é "falso" ou nulo | int, double, string, pointer, bool, id |
 | `toBeNull()` | Verifica se um ponteiro é `NULL` ou `nil` | pointer, id |
+| `toBeDefined()` | Verifica se um ponteiro não é `NULL`/`nil` | pointer, id |
+| `toBeUndefined()` | Verifica se um ponteiro é `NULL`/`nil` | pointer, id |
 | `toBeGreaterThan(x)` | Verifica se o valor é maior que `x` | int, double |
 | `toBeLessThan(x)` | Verifica se o valor é menor que `x` | int, double |
 | `toBeInRange(min, max)` | Verifica se o valor está dentro do intervalo | int, double |
@@ -19,6 +21,7 @@ Matchers são funções que verificam valores. O Cest fornece matchers fluentes 
 | `toEndWith(suffix)` | Verifica se uma string termina com sufixo | string |
 | `toBeCloseTo(val, prec)` | Compara números decimais com precisão específica | double |
 | `toEqualArray(x, len)` | Compara duas regiões de memória | array |
+| `toMatch(regex)` | Verifica string contra `std::regex` | string (apenas C++) |
 
 ## Exemplos
 
@@ -66,6 +69,25 @@ expect(NULL).toBeNull();
 int a[] = {1, 2, 3};
 int b[] = {1, 2, 3};
 expect_array(a, 3).toEqualArray(b, 3);
+```
+
+### Definido / Indefinido
+
+```c
+int x = 42;
+int* definido = &x;
+int* indefinido = NULL;
+
+expect(definido).toBeDefined();
+expect(indefinido).toBeUndefined();
+expect(indefinido).toBeNull();
+```
+
+### Regex (apenas C++)
+
+```cpp
+#include <regex>
+expect("hello world").toMatch(std::regex("hello .*"));
 ```
 
 ## Ver também

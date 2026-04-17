@@ -36,7 +36,7 @@ it("test description", {
 ### expect(x)
 ### expect_array(x, len)
 
-Starts an assertion with the actual value.
+Starts an assertion chain with the actual value. Context is automatically reset before each `expect()` call — stale data from previous assertions never leaks.
 
 ```c
 expect(2 + 2).toBe(4);
@@ -67,8 +67,11 @@ expect_array(a, 3).toEqualArray(b, 3);
 | `toBeNull()` | `expect(ptr).toBeNull()` |
 | `toBeTruthy()` | `expect(val).toBeTruthy()` |
 | `toBeFalsy()` | `expect(val).toBeFalsy()` |
+| `toBeDefined()` | `expect(ptr).toBeDefined()` |
+| `toBeUndefined()` | `expect(ptr).toBeUndefined()` |
 | `toBeCloseTo(val, prec)` | `expect(double_val).toBeCloseTo(3.14, 0.01)` |
 | `toEqualArray(x, len)` | `expect_array(arr, n).toEqualArray(arr2, n)` |
+| `toMatch(regex)` | `expect(str).toMatch(std::regex("..."))` (C++ only) |
 
 ---
 
@@ -112,6 +115,11 @@ describe("Suite", {
 
 **Note:** Hooks are disabled with `CEST_NO_HOOKS`.
 
+When `CEST_ENABLE_SIGNAL_HANDLER` is active, crash diagnostics identify which hook caused a crash:
+```
+✕ CRASH: SIGSEGV (Segmentation Fault) in hook: beforeEach during test: my test
+```
+
 ---
 
 ## Benchmarking
@@ -129,6 +137,8 @@ describe("Performance", {
 ```
 
 Executes the block 1000 times and reports total/average time.
+
+---
 
 ## Functions
 
@@ -151,7 +161,7 @@ int main() {
 
 ### cest_init(argc, argv)
 
-Initialize Cest with command-line arguments. Enables filtering tests.
+Initialize Cest with command-line arguments. Enables test filtering and, when `CEST_ENABLE_SIGNAL_HANDLER` is defined, installs crash signal handlers.
 
 ```c
 int main(int argc, char* argv[]) {
@@ -180,7 +190,18 @@ Define these **before** including `cest.h`:
 | `CEST_NO_CLI` | Disable CLI argument parsing |
 | `CEST_NO_HOOKS` | Disable beforeEach/afterEach hooks |
 | `CEST_ENABLE_SKIP` | Enable skip/only test modifiers |
+| `CEST_ENABLE_FORK` | Enable test isolation via `fork()` |
+| `CEST_ENABLE_COVERAGE` | Enable gcov coverage integration |
 | `CEST_ENABLE_LEAK_DETECTION` | Enable memory leak detection |
+| `CEST_ENABLE_SIGNAL_HANDLER` | Enable crash diagnostics (SIGSEGV, SIGABRT, etc.) |
+| `CEST_PREFIX` | Use `cest_` prefix on all public macros |
+
+### CI Color Output
+
+Color output is **compile-time** only. To disable colors in CI environments:
+```bash
+gcc -DCEST_NO_COLORS -o my_test my_test.c
+```
 
 ### Leak Detection
 
@@ -199,6 +220,51 @@ int main() {
 ```
 
 **Note:** Automatically disabled when AddressSanitizer, ThreadSanitizer, or MemorySanitizer are active to avoid conflicts.
+
+### Signal Handler
+
+Catches process-fatal signals (SIGSEGV, SIGABRT, SIGFPE, SIGBUS, SIGILL) and prints which test and hook were running at the time of crash. Uses `write()` (async-signal-safe) internally.
+
+```c
+#define CEST_ENABLE_SIGNAL_HANDLER
+#include "cest.h"
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv); // installs handlers
+    describe("Suite", {
+        it("dangerous test", {
+            // if this crashes, output will be:
+            // ✕ CRASH: SIGSEGV (Segmentation Fault) during test: dangerous test
+        });
+    });
+    return cest_result();
+}
+```
+
+> **Note:** `CEST_ENABLE_SIGNAL_HANDLER` is complementary to `CEST_ENABLE_FORK`. Fork provides full test isolation; the signal handler provides lightweight crash diagnostics when fork is not available or desired.
+
+### Namespaced Macros (CEST_PREFIX)
+
+When `CEST_PREFIX` is defined, all public macros are also available with the `cest_` prefix, avoiding name collisions with other libraries:
+
+```c
+#define CEST_PREFIX
+#include "cest.h"
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+    cest_describe("Suite", {
+        cest_it("test", {
+            cest_expect(2 + 2).toEqual(4);
+        });
+    });
+    return cest_result();
+}
+```
+
+Available prefixed macros: `cest_describe`, `cest_test`, `cest_it`, `cest_expect`, `cest_expect_array`, `cest_bench`, `cest_beforeEach`, `cest_afterEach`, `cest_beforeAll`, `cest_afterAll`.
+
+The short-form macros (`describe`, `test`, `expect`, etc.) remain available regardless.
 
 ---
 

@@ -67,7 +67,6 @@ ifeq ($(OBJC_AVAILABLE),yes)
   $(info Info: Objective-C support detected$(if $(OBJC_PKG_NAME), via $(OBJC_PKG_NAME)))
 else
   $(info Warning: Objective-C runtime not found. ObjC/ObjCpp examples skipped.)
-  $(info To enable: install libobjc development package)
 endif
 
 ifdef CLANG_EXISTS
@@ -83,103 +82,111 @@ OBJCC_FLAGS = $(OBJCCFLAGS) $(OBJC_CFLAGS) $(CLANG_INCLUDES)
 
 BUILD_DIR = build
 
-EXAMPLES = $(BUILD_DIR)/basic_c $(BUILD_DIR)/basic_cpp $(BUILD_DIR)/struct_testing $(BUILD_DIR)/multi_test_suite
+# Core Examples
+EXAMPLES_C = $(BUILD_DIR)/c_basic $(BUILD_DIR)/c_advanced $(BUILD_DIR)/c_structs
+EXAMPLES_CPP = $(BUILD_DIR)/cpp_basic $(BUILD_DIR)/cpp_hooks
+EXAMPLES_MULTI = $(BUILD_DIR)/multi_test_suite
+
+# Feature Examples
+FEATURES = $(BUILD_DIR)/feat_hooks $(BUILD_DIR)/feat_fixtures $(BUILD_DIR)/feat_matchers \
+           $(BUILD_DIR)/feat_skip_only $(BUILD_DIR)/feat_leak_detection $(BUILD_DIR)/feat_prefix
+
+# Diagnostic Examples
+DIAGNOSTICS = $(BUILD_DIR)/diag_crash $(BUILD_DIR)/diag_hook_crash $(BUILD_DIR)/diag_fail
+
+ALL_EXAMPLES = $(EXAMPLES_C) $(EXAMPLES_CPP) $(EXAMPLES_MULTI) $(FEATURES) $(DIAGNOSTICS)
+
 ifeq ($(OBJC_AVAILABLE),yes)
-  EXAMPLES += $(BUILD_DIR)/basic_objc $(BUILD_DIR)/basic_objcpp
+  EXAMPLES_OBJC = $(BUILD_DIR)/objc_basic $(BUILD_DIR)/objc_advanced
+  EXAMPLES_OBJCC = $(BUILD_DIR)/objcpp_basic
+  ALL_EXAMPLES += $(EXAMPLES_OBJC) $(EXAMPLES_OBJCC)
 endif
 
-.PHONY: all run clean test objc-deps run-c run-cpp run-objc run-objcpp check-c11
+.PHONY: all run clean test objc-deps c-examples cpp-examples feature-examples diag-examples
 
-all: $(BUILD_DIR) $(EXAMPLES)
+all: $(BUILD_DIR) $(ALL_EXAMPLES)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(BUILD_DIR)/basic_c: examples/basic_c.c cest.h | check-c11
+# --- C Examples ---
+$(BUILD_DIR)/c_basic: examples/c/basic.c cest.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/struct_testing: examples/struct_testing.c cest.h | check-c11
+$(BUILD_DIR)/c_advanced: examples/c/advanced.c cest.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/multi_test_suite: examples/multi_file/test_main.c examples/multi_file/test_math.c examples/multi_file/test_string.c cest.h | check-c11
-	$(CC) $(CFLAGS) examples/multi_file/test_main.c examples/multi_file/test_math.c examples/multi_file/test_string.c -o $@
+$(BUILD_DIR)/c_structs: examples/c/structs.c cest.h
+	$(CC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/basic_cpp: examples/basic_cpp.cpp cest.h
+# --- C++ Examples ---
+$(BUILD_DIR)/cpp_basic: examples/cpp/basic.cpp cest.h
 	$(CXX) $(CXXFLAGS) $< -o $@
 
-$(BUILD_DIR)/basic_objc: examples/basic_objc.m cest.h
+$(BUILD_DIR)/cpp_hooks: examples/cpp/hooks.cpp cest.h
+	$(CXX) $(CXXFLAGS) $< -o $@
+
+# --- Objective-C Examples ---
+$(BUILD_DIR)/objc_basic: examples/objc/basic.m cest.h
 	$(OBJC_CC) $(OBJC_FLAGS) $< -o $@ $(OBJC_LIBS)
 
-$(BUILD_DIR)/basic_objcpp: examples/basic_objcpp.mm cest.h
+$(BUILD_DIR)/objc_advanced: examples/objc/advanced.m cest.h
+	$(OBJC_CC) $(OBJC_FLAGS) $< -o $@ $(OBJC_LIBS)
+
+$(BUILD_DIR)/objcpp_basic: examples/objcpp/basic.mm cest.h
 	$(OBJCC_CXX) $(OBJCC_FLAGS) $< -o $@ $(OBJC_LIBS) -L/usr/lib/gcc/x86_64-linux-gnu/$(GXX_MAJOR) -lstdc++
 
-check-c11:
-	@$(CC) $(CFLAGS) -std=c11 -x c -c -o /dev/null cest.h 2>/dev/null || \
-		echo "Warning: C11 features may not be fully supported by your compiler"
+# --- Multi-file Example ---
+$(BUILD_DIR)/multi_test_suite: examples/multi_file/test_main.c examples/multi_file/test_math.c examples/multi_file/test_string.c cest.h
+	$(CC) $(CFLAGS) examples/multi_file/test_main.c examples/multi_file/test_math.c examples/multi_file/test_string.c -o $@
 
+# --- Feature Examples ---
+$(BUILD_DIR)/feat_hooks: examples/features/hooks.c cest.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/feat_fixtures: examples/features/fixtures.c cest.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/feat_matchers: examples/features/matchers.c cest.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/feat_skip_only: examples/features/skip_only.c cest.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/feat_leak_detection: examples/features/leak_detection.c cest.h
+	$(CC) $(CFLAGS) -DCEST_ENABLE_LEAK_DETECTION $< -o $@
+
+$(BUILD_DIR)/feat_prefix: examples/features/prefix.c cest.h
+	$(CC) $(CFLAGS) -DCEST_PREFIX $< -o $@
+
+# --- Diagnostic Examples ---
+$(BUILD_DIR)/diag_crash: examples/diagnostics/crash.c cest.h
+	$(CC) $(CFLAGS) -DCEST_ENABLE_SIGNAL_HANDLER $< -o $@
+
+$(BUILD_DIR)/diag_hook_crash: examples/diagnostics/hook_crash.c cest.h
+	$(CC) $(CFLAGS) -DCEST_ENABLE_SIGNAL_HANDLER $< -o $@
+
+$(BUILD_DIR)/diag_fail: examples/diagnostics/fail.c cest.h
+	$(CC) $(CFLAGS) $< -o $@
+
+# --- Runners ---
 run: all
-	@echo "==========================================="
-	@echo "Running Cest Examples"
-	@echo "==========================================="
-	@$(MAKE) run-c run-struct run-multi run-cpp
-ifeq ($(OBJC_AVAILABLE),yes)
-	@$(MAKE) run-objc run-objcpp
-endif
-	@echo "==========================================="
-
-run-c:
+	@echo ">>> Running Core C Examples"
+	@$(BUILD_DIR)/c_basic
+	@$(BUILD_DIR)/c_advanced
+	@$(BUILD_DIR)/c_structs
 	@echo ""
-	@echo ">>> C Example"
-	@echo "-------------------------------------------"
-	@$(BUILD_DIR)/basic_c
-
-run-struct:
-	@echo ""
-	@echo ">>> Struct Testing Example"
-	@echo "-------------------------------------------"
-	@$(BUILD_DIR)/struct_testing
-
-run-multi:
-	@echo ""
-	@echo ">>> Multi-File Test Suite Example"
-	@echo "-------------------------------------------"
+	@echo ">>> Running Multi-file Suite"
 	@$(BUILD_DIR)/multi_test_suite
-
-run-cpp:
 	@echo ""
-	@echo ">>> C++ Example"
-	@echo "-------------------------------------------"
-	@$(BUILD_DIR)/basic_cpp
-
-run-objc:
+	@echo ">>> Running C++ Examples"
+	@$(BUILD_DIR)/cpp_basic
+ifeq ($(OBJC_AVAILABLE),yes)
 	@echo ""
-	@echo ">>> Objective-C Example"
-	@echo "-------------------------------------------"
-	@$(BUILD_DIR)/basic_objc
-
-run-objcpp:
-	@echo ""
-	@echo ">>> Objective-C++ Example"
-	@echo "-------------------------------------------"
-	@$(BUILD_DIR)/basic_objcpp
-
-objc-deps:
-	@echo "Checking Objective-C availability..."
-	@if $(PKG_CONFIG) --exists objc 2>/dev/null; then \
-		echo "pkg-config: objc found"; \
-	elif $(PKG_CONFIG) --exists objc-gnu 2>/dev/null; then \
-		echo "pkg-config: objc-gnu found"; \
-	elif [ -f /usr/include/objc/objc.h ]; then \
-		echo "libobjc headers found at /usr/include/objc/"; \
-	else \
-		echo "No Objective-C runtime detected."; \
-		echo ""; \
-		echo "Install libobjc-dev package:"; \
-		echo "  Debian/Ubuntu: apt install libobjc-dev"; \
-		echo "  Fedora/RHEL:   dnf install libobjc-devel"; \
-		echo "  Arch:          pacman -S libobjc"; \
-		echo "  macOS:         Included with Xcode/Developer Tools"; \
-	fi
+	@echo ">>> Running Objective-C Examples"
+	@$(BUILD_DIR)/objc_basic
+	@$(BUILD_DIR)/objcpp_basic
+endif
 
 clean:
 	rm -rf $(BUILD_DIR)

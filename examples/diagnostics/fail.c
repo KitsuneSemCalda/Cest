@@ -1,6 +1,6 @@
-#include "../cest.h"
+#include "../../cest.h"
 
-#include "../cest.h"
+#include "../../cest.h"
 
 int main() {
     describe("Error Messages Test", {

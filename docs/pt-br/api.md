@@ -36,7 +36,7 @@ it("descrição do teste", {
 ### expect(x)
 ### expect_array(x, len)
 
-Inicia uma asserção com o valor atual.
+Inicia uma cadeia de assertiva com o valor atual. O contexto é resetado automaticamente antes de cada chamada de `expect()` — dados antigos de assertivas anteriores nunca vazam.
 
 ```c
 expect(2 + 2).toBe(4);
@@ -67,8 +67,11 @@ expect_array(a, 3).toEqualArray(b, 3);
 | `toBeNull()` | `expect(ptr).toBeNull()` |
 | `toBeTruthy()` | `expect(val).toBeTruthy()` |
 | `toBeFalsy()` | `expect(val).toBeFalsy()` |
+| `toBeDefined()` | `expect(ptr).toBeDefined()` |
+| `toBeUndefined()` | `expect(ptr).toBeUndefined()` |
 | `toBeCloseTo(val, prec)` | `expect(double_val).toBeCloseTo(3.14, 0.01)` |
 | `toEqualArray(x, len)` | `expect_array(arr, n).toEqualArray(arr2, n)` |
+| `toMatch(regex)` | `expect(str).toMatch(std::regex("..."))` (apenas C++) |
 
 ---
 
@@ -112,6 +115,11 @@ describe("Suite", {
 
 **Nota:** Hooks são desabilitados com `CEST_NO_HOOKS`.
 
+Quando `CEST_ENABLE_SIGNAL_HANDLER` está ativo, os diagnósticos de crash identificam qual hook causou a falha:
+```
+✕ CRASH: SIGSEGV (Segmentation Fault) in hook: beforeEach during test: meu teste
+```
+
 ---
 
 ## Benchmarking
@@ -130,11 +138,13 @@ describe("Performance", {
 
 Executa o bloco 1000 vezes e reporta tempo total/médio.
 
+---
+
 ## Funções
 
 ### cest_result()
 
-Retorna o resultado dos testes e打印 um resumo.
+Retorna o resultado dos testes e exibe um resumo.
 
 ```c
 int main() {
@@ -151,7 +161,7 @@ int main() {
 
 ### cest_init(argc, argv)
 
-Inicializa o Cest com argumentos de linha de comando. Permite filtrar testes.
+Inicializa o Cest com argumentos de linha de comando. Habilita o filtro de testes e, quando `CEST_ENABLE_SIGNAL_HANDLER` está definido, instala os handlers de crash.
 
 ```c
 int main(int argc, char* argv[]) {
@@ -179,7 +189,7 @@ int main(int argc, char* argv[]) {
 | `cest_ptr(v)` | Cria `cest_value_t` de ponteiro |
 | `cest_bool(v)` | Cria `cest_value_t` de booleano |
 | `cest_array(v, len)` | Cria `cest_value_t` de array |
-| `cest_value(v)` | Cria valor automático |
+| `cest_value(v)` | Cria valor automático via `_Generic` (C) ou template (C++) |
 
 ---
 
@@ -194,7 +204,18 @@ Defina estas **antes** de incluir `cest.h`:
 | `CEST_NO_CLI` | Desabilita parsing de argumentos CLI |
 | `CEST_NO_HOOKS` | Desabilita hooks beforeEach/afterEach |
 | `CEST_ENABLE_SKIP` | Habilita modificadores skip/only |
+| `CEST_ENABLE_FORK` | Habilita isolamento de testes via `fork()` |
+| `CEST_ENABLE_COVERAGE` | Habilita integração com gcov |
 | `CEST_ENABLE_LEAK_DETECTION` | Habilita detecção de memory leak |
+| `CEST_ENABLE_SIGNAL_HANDLER` | Habilita diagnóstico de crash (SIGSEGV, SIGABRT, etc.) |
+| `CEST_PREFIX` | Usa prefixo `cest_` em todos os macros públicos |
+
+### Output Colorido no CI
+
+O controle de cores é **apenas em tempo de compilação**. Para desabilitar cores em ambientes CI:
+```bash
+gcc -DCEST_NO_COLORS -o my_test my_test.c
+```
 
 ### Detecção de Leak
 
@@ -213,6 +234,51 @@ int main() {
 ```
 
 **Nota:** Automaticamente desabilitado quando AddressSanitizer, ThreadSanitizer ou MemorySanitizer estão ativos para evitar conflitos.
+
+### Signal Handler
+
+Captura sinais fatais do processo (SIGSEGV, SIGABRT, SIGFPE, SIGBUS, SIGILL) e exibe qual teste e hook estavam em execução no momento do crash. Usa `write()` internamente (async-signal-safe).
+
+```c
+#define CEST_ENABLE_SIGNAL_HANDLER
+#include "cest.h"
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv); // instala os handlers
+    describe("Suite", {
+        it("teste perigoso", {
+            // se crashar, o output será:
+            // ✕ CRASH: SIGSEGV (Segmentation Fault) during test: teste perigoso
+        });
+    });
+    return cest_result();
+}
+```
+
+> **Nota:** `CEST_ENABLE_SIGNAL_HANDLER` é complementar ao `CEST_ENABLE_FORK`. Fork oferece isolamento completo; o signal handler oferece diagnósticos leves quando fork não está disponível.
+
+### Macros com Prefixo (CEST_PREFIX)
+
+Quando `CEST_PREFIX` é definido, todos os macros públicos ficam disponíveis também com o prefixo `cest_`, evitando colisões de nome com outras bibliotecas:
+
+```c
+#define CEST_PREFIX
+#include "cest.h"
+
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
+    cest_describe("Suite", {
+        cest_it("teste", {
+            cest_expect(2 + 2).toEqual(4);
+        });
+    });
+    return cest_result();
+}
+```
+
+Macros prefixados disponíveis: `cest_describe`, `cest_test`, `cest_it`, `cest_expect`, `cest_expect_array`, `cest_bench`, `cest_beforeEach`, `cest_afterEach`, `cest_beforeAll`, `cest_afterAll`.
+
+Os macros curtos (`describe`, `test`, `expect`, etc.) continuam disponíveis independentemente.
 
 ---
 
@@ -260,7 +326,7 @@ Macro para símbolos fracos (suporte cross-compilation unit).
 #include "cest.h"
 void run_math_tests() {
     describe("Math", {
-        it("adds", { expect(1+1).toBe(2); });
+        it("soma", { expect(1+1).toBe(2); });
     });
 }
 ```
