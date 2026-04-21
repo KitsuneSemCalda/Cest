@@ -11,11 +11,27 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 ## Supported Languages
 
 | Language | Extension | Compiler | Support |
-|----------|-----------|----------|:--------:|
+|:---------|----------|----------|:--------:|
 | **C** | `.c` | `gcc`, `clang` | Yes |
 | **C++** | `.cpp` | `g++`, `clang++` | Yes |
 | **Objective-C** | `.m` | `clang -x objective-c` | Yes |
 | **Objective-C++** | `.mm` | `clang++ -x objective-c++` | Yes |
+
+### Language Versions
+
+| Language | Versions | Notes |
+|:---------|:--------|:------|
+| **C** | C89, C99, C11, C17, C23 | Full support, modern macros available |
+| **C++** | C++11, C++17, C++20, C++23 | Template-based type handling |
+| **ObjC** | ARC & non-ARC | Nullability annotations supported |
+
+### Compiler Compatibility
+
+| Compiler | Flags |
+|:---------|:-----|
+| **GCC** | `-std=c11 -Wall -Wextra` |
+| **Clang** | `-std=c11 -Wall -Wextra` |
+| **MSVC** | `/std:c11` (partial) |
 
 ## Why Cest?
 
@@ -23,9 +39,11 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 - **Expressive syntax**: Fluent API inspired by Jest
 - **No dependencies**: No external libraries required
 - **Multi-language**: Works with C, C++, Objective-C, and Objective-C++
+- **Modern language support**: C11/C17/C23, C++17/C++20/C++23, ObjC with ARC
 - **Hooks support**: beforeAll/afterAll/beforeEach/afterEach
 - **Built-in benchmarking**: Simple performance measurement
 - **Sanitizer compatible**: Works seamlessly with ASan, TSan, MSan
+- **Clean output**: Automatic compiler warning suppression
 - **Extensible**: Create custom matchers for domain-specific assertions
 - **Flexible execution**: Skip/Only modifiers for focused testing
 - **CI/CD ready**: JUnit XML and JSON output formats

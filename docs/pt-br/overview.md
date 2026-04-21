@@ -17,15 +17,33 @@ Cest é um framework de testes leve e **header-only** para C e linguagens relaci
 | **Objective-C** | `.m` | `clang -x objective-c` | Sim |
 | **Objective-C++** | `.mm` | `clang++ -x objective-c++` | Sim |
 
+### Versões de Linguagem
+
+| Linguagem | Versões | Notas |
+|---------|:-------|:------|
+| **C** | C89, C99, C11, C17, C23 | Suporte completo, macros modernos disponíveis |
+| **C++** | C++11, C++17, C++20, C++23 | Type handling baseado em templates |
+| **ObjC** | ARC & non-ARC | Anotações de nullability suportadas |
+
+### Compatibilidade de Compiladores
+
+| Compilador | Flags |
+|:----------|:-----|
+| **GCC** | `-std=c11 -Wall -Wextra` |
+| **Clang** | `-std=c11 -Wall -Wextra` |
+| **MSVC** | `/std:c11` (parcial) |
+
 ## Por que Cest?
 
 - **Header-only**: Apenas um arquivo `cest.h` para incluir
 - **Sintaxe expressiva**: API fluente inspirada em Jest
 - **Sem dependências**: Não requer bibliotecas externas
 - **Multi-linguagem**: Funciona com C, C++, Objective-C e Objective-C++
+- **Suporte moderno**: C11/C17/C23, C++17/C++20/C++23, ObjC com ARC
 - **Suporte a hooks**: beforeAll/afterAll/beforeEach/afterEach
 - **Benchmarking integrado**: Medição simples de performance
 - **Compatível com sanitizers**: Funciona perfeitamente com ASan, TSan, MSan
+- **Saída limpa**: Supressão automática de warnings do compilador
 - **Extensível**: Crie matchers customizados para asserções específicas de domínio
 - **Execução flexível**: Modificadores Skip/Only para testes focados
 - **Pronto para CI/CD**: Formatos de saída JUnit XML e JSON

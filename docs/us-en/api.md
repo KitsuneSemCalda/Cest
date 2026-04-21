@@ -18,6 +18,29 @@ describe("Suite Name", {
 
 ---
 
+### describe_file(block)
+
+Defines a test suite automatically named after the source file. Useful for organizing tests across multiple translation units.
+
+```c
+describe_file({
+    describe("Math Tests", {
+        it("adds", { expect(1+1).toBe(2); });
+    });
+});
+```
+
+**Output:**
+```
+● test_math.c
+  ● Math Tests
+    ✓ adds
+```
+
+This macro automatically extracts the filename from `__FILE__` and uses it as the suite name. This is useful when tests span multiple files.
+
+---
+
 ### test(name, block)
 ### it(name, block)
 
@@ -195,6 +218,26 @@ Define these **before** including `cest.h`:
 | `CEST_ENABLE_LEAK_DETECTION` | Enable memory leak detection |
 | `CEST_ENABLE_SIGNAL_HANDLER` | Enable crash diagnostics (SIGSEGV, SIGABRT, etc.) |
 | `CEST_PREFIX` | Use `cest_` prefix on all public macros |
+| `CEST_SUPPRESS_WARNINGS` | Enable/disable compiler warning suppression (default: 1) |
+| `CEST_AUTO_DESCRIBE_FILE` | Enable automatic test grouping by file |
+
+### Warning Suppression
+
+Cest automatically suppresses common compiler warnings to keep your test output clean. This includes warnings for:
+- `-Wpedantic` - Non-standard extensions
+- `-Wstrict-prototypes` - Missing function prototypes
+- `-Wunused-function` - Unused functions
+- `-Wunused-parameter` - Unused parameters
+- `-Wimplicit-fallthrough` - Fallthrough in switches
+- `-Wcast-align` - Pointer cast alignment
+
+To disable warning suppression:
+```c
+#define CEST_SUPPRESS_WARNINGS 0
+#include "cest.h"
+```
+
+Supported compilers: GCC, Clang, MSVC
 
 ### CI Color Output
 
@@ -307,12 +350,28 @@ Macro for weak symbols (cross-compilation unit support).
 
 ### Multi-file Projects
 
+Use `describe_file()` to automatically group tests by source file:
+
 ```c
 // test_math.c
 #include "cest.h"
 void run_math_tests() {
-    describe("Math", {
-        it("adds", { expect(1+1).toBe(2); });
+    describe_file({
+        describe("Math", {
+            it("adds", { expect(1+1).toBe(2); });
+        });
+    });
+}
+```
+
+```c
+// test_string.c
+#include "cest.h"
+void run_string_tests() {
+    describe_file({
+        describe("String", {
+            it("compares", { expect("hello").toEqual("hello"); });
+        });
     });
 }
 ```
@@ -321,14 +380,27 @@ void run_math_tests() {
 // main.c
 #include "cest.h"
 extern void run_math_tests();
+extern void run_string_tests();
 
 int main() {
     run_math_tests();
+    run_string_tests();
     return cest_result();
 }
 ```
 
 Compile:
 ```bash
-gcc -o suite main.c test_math.c
+gcc -o suite main.c test_math.c test_string.c
+```
+
+Output:
+```
+● test_math.c
+  ● Math
+    ✓ adds
+
+● test_string.c
+  ● String
+    ✓ compares
 ```

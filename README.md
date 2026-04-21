@@ -20,6 +20,14 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 | **Objective-C** | `.m` | `clang -x objective-c` | Yes |
 | **Objective-C++** | `.mm` | `clang++ -x objective-c++` | Yes |
 
+### Language Versions
+
+| Language | Versions |
+|:---------|:---------|
+| **C** | C11, C17, C23 |
+| **C++** | C++17, C++20, C++23 |
+| **ObjC** | ARC & non-ARC |
+
 ---
 
 ## Quick Start
@@ -155,14 +163,17 @@ Run specific tests from command line:
 
 - **Header-Only**: Just include `cest.h` in your project.
 - **Multi-Language**: Native support for C, C++, Objective-C, and Objective-C++.
+- **Modern Language Support**: C11/C17/C23, C++17/C++20/C++23, ObjC with ARC.
 - **No Dependencies**: Zero external libraries (not even `-lm`).
 - **Modern Syntax**: Uses `describe`, `it`, and `expect` for readable tests.
 - **Colorized Output**: Instant visual feedback in your terminal.
 - **Type-Safe**: Uses `_Generic` (C11) or function overloading (C++) for automatic type handling.
 - **Multi-file Support**: Compile multiple `.c` test files and Cest unifies results.
+- **Auto Grouping**: Use `describe_file()` to automatically group tests by source file.
 - **Hooks Support**: `beforeAll`, `afterAll`, `beforeEach`, `afterEach` for setup/cleanup.
 - **Built-in Benchmarking**: Simple performance measurement with `bench` macro.
 - **Sanitizer Compatible**: Works seamlessly with ASan, TSan, MSan.
+- **Clean Output**: Automatic compiler warning suppression.
 
 ---
 

@@ -26,6 +26,74 @@
 #endif
 
 // ============================================================================
+// Warning Suppression (enabled by default, can be disabled)
+// ============================================================================
+#ifndef CEST_SUPPRESS_WARNINGS
+#  define CEST_SUPPRESS_WARNINGS 1
+#endif
+
+#if CEST_SUPPRESS_WARNINGS
+#  ifdef __GNUC__
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wpedantic"
+#    pragma GCC diagnostic ignored "-Wstrict-prototypes"
+#    pragma GCC diagnostic ignored "-Wunused-function"
+#    pragma GCC diagnostic ignored "-Wunused-parameter"
+#    pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#    pragma GCC diagnostic ignored "-Wcast-align"
+#  endif
+#  ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wpedantic"
+#    pragma clang diagnostic ignored "-Wstrict-prototypes"
+#    pragma clang diagnostic ignored "-Wunused-function"
+#    pragma clang diagnostic ignored "-Wunused-parameter"
+#    pragma clang diagnostic ignored "-Wimplicit-fallthrough"
+#    pragma clang diagnostic ignored "-Wcast-align"
+#    pragma clang diagnostic ignored "-Wcovered-switch-default"
+#  endif
+#  ifdef _MSC_VER
+#    pragma warning(push)
+#    pragma warning(disable: 4100) // unreferenced formal parameter
+#    pragma warning(disable: 4102) // unreferenced label
+#    pragma warning(disable: 4189) // local variable is initialized
+#    pragma warning(disable: 4201) // nameless struct/union
+#    pragma warning(disable: 4214) // bitfield types other than int
+#    pragma warning(disable: 4505) // unreferenced local function
+#  endif
+#endif
+
+// ============================================================================
+// Modern Language Version Detection
+// ============================================================================
+#ifndef __STDC_VERSION__
+#  define __STDC_VERSION__ 0
+#endif
+#define _CEST_C11   (__STDC_VERSION__ >= 201112L)
+#define _CEST_C17   (__STDC_VERSION__ >= 201710L)
+#define _CEST_C23   (__STDC_VERSION__ >= 202000L)
+
+#ifdef __cplusplus
+#  if __cplusplus >= 201703L
+#    define _CEST_CPP17 1
+#  endif
+#  if __cplusplus >= 202002L
+#    define _CEST_CPP20 1
+#  endif
+#  if __cplusplus >= 202302L
+#    define _CEST_CPP23 1
+#  endif
+#endif
+
+#ifdef __OBJC__
+#  ifdef __has_feature
+#    if __has_feature(objc_arc)
+#      define _CEST_OBJC_ARC 1
+#    endif
+#  endif
+#endif
+
+// ============================================================================
 // CONFIGURATION MACROS (define before including cest.h)
 // ============================================================================
 // #define CEST_NO_COLORS             // Disable colored output
@@ -227,7 +295,11 @@ typedef enum {
     CEST_TYPE_BOOL,
     CEST_TYPE_OBJC_ID,
     CEST_TYPE_REGEX,
-    CEST_TYPE_ARRAY
+    CEST_TYPE_ARRAY,
+    CEST_TYPE_CHAR8,
+    CEST_TYPE_CHAR16,
+    CEST_TYPE_CHAR32,
+    CEST_TYPE_BYTE
 } cest_type_t;
 
 typedef struct {
@@ -238,6 +310,7 @@ typedef struct {
         const char *s;
         const void *p;
         bool b;
+        unsigned char u8;
 #ifdef __OBJC__
         id obj;
 #endif
@@ -1195,9 +1268,35 @@ static inline int cest_result() {
 #  define cest_expect_array(x, len)     expect_array(x, len)
 #  define cest_bench(name, block)       bench(name, block)
 #  define cest_beforeEach(fn)           beforeEach(fn)
-#  define cest_afterEach(fn)            afterEach(fn)
-#  define cest_beforeAll(fn)            beforeAll(fn)
-#  define cest_afterAll(fn)             afterAll(fn)
+#  define cest_afterEach(fn)           afterEach(fn)
+#  define cest_beforeAll(fn)           beforeAll(fn)
+#  define cest_afterAll(fn)            afterAll(fn)
+#endif
+
+// ============================================================================
+// File-based Test Grouping (describe with automatic filename)
+// ============================================================================
+#define describe_file(block) \
+    describe(_cest_basename(__FILE__), block)
+
+static inline const char* _cest_basename(const char* path) {
+    const char* sep = path ? strrchr(path, '/') : NULL;
+    return sep ? sep + 1 : (path ? path : "unknown");
+}
+
+// ============================================================================
+// End Warning Suppression
+// ============================================================================
+#if CEST_SUPPRESS_WARNINGS
+#  ifdef __GNUC__
+#    pragma GCC diagnostic pop
+#  endif
+#  ifdef __clang__
+#    pragma clang diagnostic pop
+#  endif
+#  ifdef _MSC_VER
+#    pragma warning(pop)
+#  endif
 #endif
 
 #endif // _CEST_H_
