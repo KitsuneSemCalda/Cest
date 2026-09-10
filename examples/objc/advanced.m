@@ -22,7 +22,7 @@ int main() {
                 void *obj = class_createInstance(leak_test_class, 0);
                 if (obj != NULL) {
                     leak_allocations++;
-                    free(obj);
+                    object_dispose(obj); // correct counterpart to class_createInstance, not free()
                 }
             }
             

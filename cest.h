@@ -1,5 +1,5 @@
-#ifndef _CEST_H_
-#define _CEST_H_
+#ifndef CEST_H_INCLUDED
+#define CEST_H_INCLUDED
 
 #define _POSIX_C_SOURCE 200809L
 #define _DEFAULT_SOURCE
@@ -9,8 +9,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
-#include <unistd.h>
-#include <sys/wait.h>
+#ifndef _WIN32
+#  include <unistd.h>
+#  include <sys/wait.h>
+#endif
 #ifdef CEST_ENABLE_SIGNAL_HANDLER
 #  include <signal.h>
 #endif
@@ -193,7 +195,7 @@
 #define CEST_SKIP_IF_VALGRIND() \
     do { if (CEST_VALGRIND_ACTIVE) { \
         printf("  " CEST_CLR_YELLOW "⊘ %s skipped (Valgrind)" CEST_CLR_RESET "\n", __func__); \
-        _cest_global_stats.skipped++; \
+        CEST_LOCK(); _cest_global_stats.skipped++; CEST_UNLOCK(); \
         return; \
     } } while(0)
 
@@ -205,7 +207,7 @@
               long errs = VALGRIND_COUNT_ERRORS; \
               if (errs > 0) { \
                   printf("  " CEST_CLR_RED "✕ Valgrind detected %ld errors" CEST_CLR_RESET "\n", errs); \
-                  _cest_global_stats.failed++; \
+                  CEST_LOCK(); _cest_global_stats.failed++; CEST_UNLOCK(); \
               } else { \
                   printf("  " CEST_CLR_GREEN "✓ No Valgrind errors" CEST_CLR_RESET "\n"); \
               } \
@@ -231,13 +233,32 @@
 #endif
 
 // Thread safety support
+//
+// Serializes access to the shared stats counters (_cest_global_stats) and
+// makes the per-assertion context (_cest_ctx) thread-local, so worker
+// threads spawned from inside a test body can each run their own
+// expect()...toX() chains without clobbering one another. The test runner
+// itself (describe/test macros) is still sequential by design.
 #ifdef CEST_THREAD_SAFE
 #  include <pthread.h>
+CEST_WEAK pthread_mutex_t _cest_mutex = PTHREAD_MUTEX_INITIALIZER;
 #  define CEST_LOCK() pthread_mutex_lock(&_cest_mutex)
 #  define CEST_UNLOCK() pthread_mutex_unlock(&_cest_mutex)
+#  if defined(__cplusplus) && __cplusplus >= 201103L
+#    define CEST_THREAD_LOCAL thread_local
+#  elif defined(_CEST_C11) && _CEST_C11 && !defined(__STDC_NO_THREADS__)
+#    define CEST_THREAD_LOCAL _Thread_local
+#  elif defined(_MSC_VER)
+#    define CEST_THREAD_LOCAL __declspec(thread)
+#  elif defined(__GNUC__) || defined(__clang__)
+#    define CEST_THREAD_LOCAL __thread
+#  else
+#    define CEST_THREAD_LOCAL
+#  endif
 #else
 #  define CEST_LOCK()
 #  define CEST_UNLOCK()
+#  define CEST_THREAD_LOCAL
 #endif
 
 // Windows console color support
@@ -265,7 +286,15 @@ static inline int _cest_is_ci(void) {
 }
 
 // Internal Math Helpers (To avoid -lm dependency)
-#define _CEST_ABS(x) ((x) < 0 ? -(x) : (x))
+// GNU/Clang: single evaluation via statement-expression + typeof.
+// Other compilers (MSVC): falls back to the classic double-evaluation macro —
+// safe today because every call site passes a side-effect-free expression,
+// but avoid passing an expression with side effects (e.g. a function call) to it.
+#if defined(__GNUC__) || defined(__clang__)
+#  define _CEST_ABS(x) __extension__ ({ __typeof__(x) _cest_abs_v = (x); _cest_abs_v < 0 ? -_cest_abs_v : _cest_abs_v; })
+#else
+#  define _CEST_ABS(x) ((x) < 0 ? -(x) : (x))
+#endif
 
 // Color codes
 #ifndef CEST_NO_COLORS
@@ -523,6 +552,63 @@ typedef enum {
 CEST_WEAK int _cest_current_test_state = CEST_TEST_NORMAL;
 
 // ============================================================================
+// Per-test recording (used by --junit / --json reports)
+// ============================================================================
+#ifndef CEST_MAX_TEST_RECORDS
+#  define CEST_MAX_TEST_RECORDS 4096
+#endif
+
+typedef struct {
+    const char* name;
+    double time;
+    int failed; // 1 if at least one assertion failed during this test
+} cest_test_record_t;
+
+CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = {{0}};
+CEST_WEAK int _cest_test_record_count = 0;
+
+static inline void _cest_record_test(const char* name, double time, int failed) {
+    CEST_LOCK();
+    if (_cest_test_record_count < CEST_MAX_TEST_RECORDS) {
+        _cest_test_records[_cest_test_record_count].name = name;
+        _cest_test_records[_cest_test_record_count].time = time;
+        _cest_test_records[_cest_test_record_count].failed = failed;
+        _cest_test_record_count++;
+    }
+    CEST_UNLOCK();
+}
+
+// Minimal escaping so test names never produce malformed reports.
+static inline void _cest_fputs_xml_escaped(const char* s, FILE* f) {
+    if (!s) return;
+    for (const char* p = s; *p; p++) {
+        switch (*p) {
+            case '&':  fputs("&amp;", f);  break;
+            case '<':  fputs("&lt;", f);   break;
+            case '>':  fputs("&gt;", f);   break;
+            case '"':  fputs("&quot;", f); break;
+            case '\'': fputs("&apos;", f); break;
+            default:   fputc(*p, f);
+        }
+    }
+}
+
+static inline void _cest_fputs_json_escaped(const char* s, FILE* f) {
+    if (!s) return;
+    for (const char* p = s; *p; p++) {
+        switch (*p) {
+            case '"':  fputs("\\\"", f); break;
+            case '\\': fputs("\\\\", f); break;
+            case '\n': fputs("\\n", f);  break;
+            case '\t': fputs("\\t", f);  break;
+            default:
+                if ((unsigned char)*p < 0x20) fprintf(f, "\\u%04x", *p);
+                else fputc(*p, f);
+        }
+    }
+}
+
+// ============================================================================
 // Coverage Support
 // ============================================================================
 #ifdef CEST_ENABLE_COVERAGE
@@ -600,7 +686,7 @@ static inline cest_value_t cest_value(T* v) { return cest_ptr((const void*)v); }
 // ============================================================================
 // Core Assertion Implementation
 // ============================================================================
-static struct {
+static CEST_THREAD_LOCAL struct {
     const char* file;
     int line;
     const char* actual_expr;
@@ -646,6 +732,7 @@ static inline void _cest_print_value(cest_value_t v) {
 static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match, const char* match_name, const char* expected_expr) {
     int diff_pos = -1;
     int passed = match(_cest_ctx.actual, expected, &diff_pos);
+    CEST_LOCK();
     if (passed) {
         printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s %s %s\n", _cest_ctx.actual_expr, match_name, expected_expr);
         _cest_global_stats.passed++;
@@ -674,6 +761,7 @@ static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match,
         _cest_global_stats.failed++;
     }
     fflush(stdout); // Ensure output is visible even if test crashes after this assert
+    CEST_UNLOCK();
     _cest_ctx.valid = 0; // Mark context as consumed
 }
 
@@ -860,6 +948,7 @@ static inline void b_toBeDefined(void) { _cest_assert_impl(cest_bool(true), matc
 static inline void b_toBeUndefined(void) { _cest_assert_impl(cest_bool(true), match_undefined, "to be", "undefined"); }
 static inline void b_toBeCloseTo(double val, double precision) {
     double diff = _CEST_ABS(_cest_ctx.actual.as.d - val);
+    CEST_LOCK();
     if (diff < precision) {
         printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be close to %g (precision %g)\n", _cest_ctx.actual_expr, val, precision);
         _cest_global_stats.passed++;
@@ -871,10 +960,12 @@ static inline void b_toBeCloseTo(double val, double precision) {
         _cest_global_stats.failed++;
     }
     fflush(stdout);
+    CEST_UNLOCK();
     _cest_ctx.valid = 0;
 }
 static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char* re) {
     int passed = match_in_range(_cest_ctx.actual, min, max, NULL);
+    CEST_LOCK();
     if (passed) {
         printf("  " CEST_CLR_GREEN "✓" CEST_CLR_RESET " %s to be in range %s\n", _cest_ctx.actual_expr, re);
         _cest_global_stats.passed++;
@@ -886,6 +977,7 @@ static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char*
         _cest_global_stats.failed++;
     }
     fflush(stdout);
+    CEST_UNLOCK();
     _cest_ctx.valid = 0;
 }
 
@@ -970,7 +1062,7 @@ static clock_t _cest_test_start_time __attribute__((unused)) = 0;
         char _cest_sanitizer_output[4096] = {0}; \
         int _cest_fork_result_status = _cest_run_forked_test((cest_test_fn)(block), _cest_sanitizer_output, sizeof(_cest_sanitizer_output)); \
         if (_cest_fork_result_status < 0) { \
-            _cest_global_stats.failed++; \
+            CEST_LOCK(); _cest_global_stats.failed++; CEST_UNLOCK(); \
             printf("\n  " CEST_CLR_RED "✕ %s (Crashed/Sanitizer Detected, Signal %d)" CEST_CLR_RESET "\n", _cest_current_test_name, -_cest_fork_result_status); \
             if (_cest_sanitizer_output[0] != '\0') { \
                 printf("    " CEST_CLR_DIM "Sanitizer Output:\n%s" CEST_CLR_RESET "\n", _cest_sanitizer_output); \
@@ -978,7 +1070,7 @@ static clock_t _cest_test_start_time __attribute__((unused)) = 0;
                 printf("    " CEST_CLR_DIM "(No sanitizer output captured)" CEST_CLR_RESET "\n"); \
             } \
         } else if (_cest_fork_result_status > 0) { \
-            _cest_global_stats.failed++; \
+            CEST_LOCK(); _cest_global_stats.failed++; CEST_UNLOCK(); \
             printf("\n  " CEST_CLR_RED "✕ %s (Exited with code %d)" CEST_CLR_RESET "\n", _cest_current_test_name, _cest_fork_result_status); \
             if (_cest_sanitizer_output[0] != '\0') { \
                 printf("    " CEST_CLR_DIM "Stderr Output:\n%s" CEST_CLR_RESET "\n", _cest_sanitizer_output); \
@@ -1000,17 +1092,19 @@ static clock_t _cest_test_start_time __attribute__((unused)) = 0;
 #define test(name, block) do { \
     if (!_cest_should_run_test(name)) { \
         printf("  " CEST_CLR_DIM "○ %s (filtered)" CEST_CLR_RESET "\n", name); \
-        _cest_global_stats.skipped++; \
+        CEST_LOCK(); _cest_global_stats.skipped++; CEST_UNLOCK(); \
     } else { \
         _cest_current_test_name = name; \
         _CEST_SIGNAL_SET_TEST(name); \
         _cest_test_start_time = clock(); \
+        int _cest_failed_before = _cest_global_stats.failed; \
         printf("  %s\n", name); \
         fflush(stdout); \
         _CEST_RUN_BEFORE_EACH(); \
         CEST_FORK_TEST(block); \
         _CEST_RUN_AFTER_EACH(); \
         fflush(stdout); \
+        _cest_record_test(name, (double)(clock() - _cest_test_start_time) / CLOCKS_PER_SEC, _cest_global_stats.failed > _cest_failed_before); \
     } \
 } while (0)
 
@@ -1079,7 +1173,7 @@ static cest_hook_fn _cest_after_all_fn __attribute__((unused)) = NULL;
 #define _CEST_SKIP_IF_SKIPPED() do { \
     if (_cest_current_test_state == CEST_TEST_SKIP) { \
         printf("  " CEST_CLR_YELLOW "⊘ %s (skipped)" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); \
-        _cest_global_stats.skipped++; \
+        CEST_LOCK(); _cest_global_stats.skipped++; CEST_UNLOCK(); \
         return; \
     } \
 } while (0)
@@ -1088,7 +1182,7 @@ static cest_hook_fn _cest_after_all_fn __attribute__((unused)) = NULL;
     int has_only = (_cest_global_stats.filter_pattern != NULL); \
     if (has_only && _cest_current_test_state != CEST_TEST_ONLY) { \
         printf("  " CEST_CLR_DIM "○ %s (only mode - skipped)" CEST_CLR_RESET "\n", _cest_ctx.actual_expr); \
-        _cest_global_stats.skipped++; \
+        CEST_LOCK(); _cest_global_stats.skipped++; CEST_UNLOCK(); \
         return; \
     } \
 } while (0)
@@ -1113,15 +1207,21 @@ static inline void _cest_write_junit(void) {
     if (!_cest_junit_output) return;
     FILE* f = fopen(_cest_junit_output, "w");
     if (!f) return;
+    int tests = _cest_global_stats.passed + _cest_global_stats.failed;
     fprintf(f, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     fprintf(f, "<testsuites tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n",
-            _cest_global_stats.passed + _cest_global_stats.failed,
-            _cest_global_stats.failed, _cest_global_stats.skipped, _cest_total_time);
+            tests, _cest_global_stats.failed, _cest_global_stats.skipped, _cest_total_time);
     fprintf(f, "  <testsuite name=\"Cest\" tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n",
-            _cest_global_stats.passed + _cest_global_stats.failed,
-            _cest_global_stats.failed, _cest_global_stats.skipped, _cest_total_time);
-    // Note: For full test details, you would need to store each test result.
-    // This is a simplified version.
+            tests, _cest_global_stats.failed, _cest_global_stats.skipped, _cest_total_time);
+    for (int i = 0; i < _cest_test_record_count; i++) {
+        fprintf(f, "    <testcase name=\"");
+        _cest_fputs_xml_escaped(_cest_test_records[i].name, f);
+        fprintf(f, "\" time=\"%.6f\">", _cest_test_records[i].time);
+        if (_cest_test_records[i].failed) {
+            fprintf(f, "<failure message=\"assertion failed\"></failure>");
+        }
+        fprintf(f, "</testcase>\n");
+    }
     fprintf(f, "  </testsuite>\n");
     fprintf(f, "</testsuites>\n");
     fclose(f);
@@ -1138,7 +1238,16 @@ static inline void _cest_write_json(void) {
     fprintf(f, "    \"skipped\": %d,\n", _cest_global_stats.skipped);
     fprintf(f, "    \"total_time\": %.3f\n", _cest_total_time);
     fprintf(f, "  },\n");
-    fprintf(f, "  \"tests\": []\n");
+    fprintf(f, "  \"tests\": [\n");
+    for (int i = 0; i < _cest_test_record_count; i++) {
+        fprintf(f, "    {\"name\": \"");
+        _cest_fputs_json_escaped(_cest_test_records[i].name, f);
+        fprintf(f, "\", \"time\": %.6f, \"status\": \"%s\"}%s\n",
+                _cest_test_records[i].time,
+                _cest_test_records[i].failed ? "failed" : "passed",
+                (i + 1 < _cest_test_record_count) ? "," : "");
+    }
+    fprintf(f, "  ]\n");
     fprintf(f, "}\n");
     fclose(f);
 }
@@ -1205,6 +1314,10 @@ static inline int _cest_should_run_test(const char* name) {
 #define cest_init(argc, argv) do { _CEST_SIGNAL_INIT(); } while(0)
 #define _cest_has_cli_flag(flag) (0)
 #define _cest_should_run_test(name) (1)
+// --junit/--json are CLI flags; with CEST_NO_CLI there's no way to set the
+// output path, so these are no-ops (cest_result() still calls them unconditionally).
+static inline void _cest_write_junit(void) {}
+static inline void _cest_write_json(void) {}
 #endif
 
 // ============================================================================
@@ -1239,7 +1352,10 @@ static inline int cest_result() {
     _cest_write_junit();
     _cest_write_json();
     
-    // Post-run command hook
+    // Post-run command hook.
+    // SECURITY: this runs CEST_POST_RUN through the system shell verbatim. Only set
+    // this env var to a command you trust — never forward untrusted/external input
+    // into it (e.g. from a PR description, webhook payload, etc.).
     const char* post_run = getenv("CEST_POST_RUN");
     if (post_run != NULL) {
         printf("\n" CEST_CLR_BOLD "Running post-test command:" CEST_CLR_RESET " %s\n", post_run);
@@ -1247,7 +1363,11 @@ static inline int cest_result() {
         if (ret == -1) {
             printf(CEST_CLR_RED "Failed to execute post-run command." CEST_CLR_RESET "\n");
         } else {
+#ifdef _WIN32
+            printf(CEST_CLR_GREEN "Post-run command executed with exit code %d." CEST_CLR_RESET "\n", ret);
+#else
             printf(CEST_CLR_GREEN "Post-run command executed with exit code %d." CEST_CLR_RESET "\n", WEXITSTATUS(ret));
+#endif
         }
     }
     
@@ -1299,4 +1419,4 @@ static inline const char* _cest_basename(const char* path) {
 #  endif
 #endif
 
-#endif // _CEST_H_
+#endif // CEST_H_INCLUDED
