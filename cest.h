@@ -997,23 +997,26 @@ static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char*
     _cest_ctx.valid = 0;
 }
 
+// Positional (not designated) initialization: designated initializers
+// require C++20 on MSVC, but this struct is also used from C++11/14/17
+// translation units. Field order here must match _cest_bridge_t exactly.
 static _cest_bridge_t _cest_bridge CEST_UNUSED = {
-    ._toEqual = b_toEqual,
-    ._toBe = b_toEqual,
-    ._toBeGreaterThan = b_toBeGreaterThan,
-    ._toBeLessThan = b_toBeLessThan,
-    ._toContain = b_toContain,
-    ._toBeInRange = b_toBeInRange,
-    ._toStartWith = b_toStartWith,
-    ._toEndWith = b_toEndWith,
-    ._toBeNull = b_toBeNull,
-    ._toBeTruthy = b_toBeTruthy,
-    ._toBeFalsy = b_toBeFalsy,
-    ._toBeCloseTo = b_toBeCloseTo,
-    ._toEqualArray = b_toEqualArray,
-    ._toMatch = b_toMatch,
-    ._toBeDefined = b_toBeDefined,
-    ._toBeUndefined = b_toBeUndefined
+    b_toEqual,
+    b_toEqual,
+    b_toBeGreaterThan,
+    b_toBeLessThan,
+    b_toContain,
+    b_toBeInRange,
+    b_toStartWith,
+    b_toEndWith,
+    b_toBeNull,
+    b_toBeTruthy,
+    b_toBeFalsy,
+    b_toBeCloseTo,
+    b_toEqualArray,
+    b_toMatch,
+    b_toBeDefined,
+    b_toBeUndefined
 };
 
 #define expect(x) (_cest_ctx_reset(), _cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_value(x), _cest_ctx.valid = 1, _cest_bridge)
