@@ -48,7 +48,10 @@ ifneq ($(OBJC_AVAILABLE),yes)
     OBJC_HEADERS := $(shell [ -f "$(GCC_INCLUDE)/objc/objc.h" ] && echo "yes")
     ifeq ($(OBJC_HEADERS),yes)
       OBJC_CFLAGS := -I$(GCC_INCLUDE)
-      OBJC_LIBS := -lobjc
+      # gcc's libobjc lives in gcc's private lib dir, which gcc searches
+      # automatically but clang does not — pass -L explicitly so OBJC_CC=clang
+      # (the default whenever clang is installed) can still find -lobjc.
+      OBJC_LIBS := -L/usr/lib/gcc/x86_64-linux-gnu/$(GCC_VERSION) -lobjc
       OBJC_AVAILABLE := yes
       OBJC_PKG_NAME := libobjc (gcc)
     else
