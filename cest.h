@@ -110,6 +110,12 @@
 // #define CEST_ENABLE_SIGNAL_HANDLER // Enable crash diagnostics (SIGSEGV, SIGABRT, etc.)
 // #define CEST_PREFIX                // Use cest_ prefix on all public macros
 
+// NOTE (C++): cest.h defines short macros like `test` and `it`. Include any
+// standard library headers (<iostream>, <bitset>, etc.) BEFORE including
+// cest.h, or those macros can collide with unrelated identifiers such as
+// std::bitset::test(). If that's not possible, define CEST_PREFIX to use
+// cest_test/cest_it instead.
+
 // ============================================================================
 // Automatic Sanitizer Detection (before any configuration)
 // ============================================================================
@@ -229,6 +235,16 @@
 #    endif
 #  else
 #    define CEST_WEAK __attribute__((weak))
+#  endif
+#endif
+
+#ifndef CEST_UNUSED
+#  if defined(_MSC_VER)
+#    define CEST_UNUSED
+#  elif defined(__GNUC__) || defined(__clang__)
+#    define CEST_UNUSED __attribute__((unused))
+#  else
+#    define CEST_UNUSED
 #  endif
 #endif
 
@@ -564,7 +580,7 @@ typedef struct {
     int failed; // 1 if at least one assertion failed during this test
 } cest_test_record_t;
 
-CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = {{0}};
+CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = { {NULL, 0, 0} };
 CEST_WEAK int _cest_test_record_count = 0;
 
 static inline void _cest_record_test(const char* name, double time, int failed) {
@@ -981,23 +997,26 @@ static inline void b_toBeInRange(cest_value_t min, cest_value_t max, const char*
     _cest_ctx.valid = 0;
 }
 
-static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
-    ._toEqual = b_toEqual,
-    ._toBe = b_toEqual,
-    ._toBeGreaterThan = b_toBeGreaterThan,
-    ._toBeLessThan = b_toBeLessThan,
-    ._toContain = b_toContain,
-    ._toBeInRange = b_toBeInRange,
-    ._toStartWith = b_toStartWith,
-    ._toEndWith = b_toEndWith,
-    ._toBeNull = b_toBeNull,
-    ._toBeTruthy = b_toBeTruthy,
-    ._toBeFalsy = b_toBeFalsy,
-    ._toBeCloseTo = b_toBeCloseTo,
-    ._toEqualArray = b_toEqualArray,
-    ._toMatch = b_toMatch,
-    ._toBeDefined = b_toBeDefined,
-    ._toBeUndefined = b_toBeUndefined
+// Positional (not designated) initialization: designated initializers
+// require C++20 on MSVC, but this struct is also used from C++11/14/17
+// translation units. Field order here must match _cest_bridge_t exactly.
+static _cest_bridge_t _cest_bridge CEST_UNUSED = {
+    b_toEqual,
+    b_toEqual,
+    b_toBeGreaterThan,
+    b_toBeLessThan,
+    b_toContain,
+    b_toBeInRange,
+    b_toStartWith,
+    b_toEndWith,
+    b_toBeNull,
+    b_toBeTruthy,
+    b_toBeFalsy,
+    b_toBeCloseTo,
+    b_toEqualArray,
+    b_toMatch,
+    b_toBeDefined,
+    b_toBeUndefined
 };
 
 #define expect(x) (_cest_ctx_reset(), _cest_ctx.file = __FILE__, _cest_ctx.line = __LINE__, _cest_ctx.actual_expr = #x, _cest_ctx.actual = cest_value(x), _cest_ctx.valid = 1, _cest_bridge)
@@ -1054,7 +1073,7 @@ static _cest_bridge_t _cest_bridge __attribute__((unused)) = {
 // ============================================================================
 // Test Runner Macros with Timing
 // ============================================================================
-static clock_t _cest_test_start_time __attribute__((unused)) = 0;
+static clock_t _cest_test_start_time CEST_UNUSED = 0;
 
 #ifdef CEST_ENABLE_FORK
 #  define CEST_FORK_TEST(block) \
@@ -1123,10 +1142,10 @@ static clock_t _cest_test_start_time __attribute__((unused)) = 0;
 // ============================================================================
 #ifndef CEST_NO_HOOKS
 typedef void (*cest_hook_fn)(void);
-static cest_hook_fn _cest_before_each_fn __attribute__((unused)) = NULL;
-static cest_hook_fn _cest_after_each_fn __attribute__((unused)) = NULL;
-static cest_hook_fn _cest_before_all_fn __attribute__((unused)) = NULL;
-static cest_hook_fn _cest_after_all_fn __attribute__((unused)) = NULL;
+static cest_hook_fn _cest_before_each_fn CEST_UNUSED = NULL;
+static cest_hook_fn _cest_after_each_fn CEST_UNUSED = NULL;
+static cest_hook_fn _cest_before_all_fn CEST_UNUSED = NULL;
+static cest_hook_fn _cest_after_all_fn CEST_UNUSED = NULL;
 
 #define beforeEach(fn) do { _cest_before_each_fn = fn; } while (0)
 #define afterEach(fn) do { _cest_after_each_fn = fn; } while (0)
