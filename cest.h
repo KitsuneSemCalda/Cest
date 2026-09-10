@@ -564,7 +564,7 @@ typedef struct {
     int failed; // 1 if at least one assertion failed during this test
 } cest_test_record_t;
 
-CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = {{0}};
+CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = { {NULL, 0, 0} };
 CEST_WEAK int _cest_test_record_count = 0;
 
 static inline void _cest_record_test(const char* name, double time, int failed) {
