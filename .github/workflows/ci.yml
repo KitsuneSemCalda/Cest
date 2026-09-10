@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: linux (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (incl. Objective-C runtime)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang pkg-config \
+            gnustep-base-runtime libobjc-13-dev || \
+          sudo apt-get install -y build-essential clang pkg-config \
+            gnustep-base-runtime libobjc-4-dev
+
+      - name: make run
+        run: make CC=${{ matrix.cc }} CXX=${{ matrix.cxx }} run
+
+  sanitizers:
+    name: sanitizers (ASan+UBSan / TSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (incl. Objective-C runtime)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang pkg-config \
+            gnustep-base-runtime libobjc-13-dev || \
+          sudo apt-get install -y build-essential clang pkg-config \
+            gnustep-base-runtime libobjc-4-dev
+
+      - name: make run under AddressSanitizer + UndefinedBehaviorSanitizer
+        run: |
+          make clean
+          make \
+            CFLAGS="-Wall -Wextra -std=c11 -g -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            CXXFLAGS="-Wall -Wextra -std=c++11 -g -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            run
+
+      - name: feat_thread_safety under ThreadSanitizer
+        run: |
+          gcc -Wall -Wextra -std=c11 -g -fsanitize=thread -pthread \
+            examples/features/thread_safety.c -o /tmp/tsan_thread_safety
+          /tmp/tsan_thread_safety
+
+  macos:
+    name: macos (Apple clang, native Objective-C runtime)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: make run
+        run: make run
+
+  msvc:
+    name: msvc (cl.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      # This job exists specifically to catch regressions of a real bug: the
+      # docs claim MSVC support, but cest.h used to unconditionally include
+      # <unistd.h>/<sys/wait.h>, which don't exist in the MSVC CRT and broke
+      # the build for every MSVC user regardless of which features they used.
+      - name: Compile and run C examples with cl.exe
+        shell: cmd
+        run: |
+          cl /nologo /W3 /std:c11 /I. examples\c\basic.c /Fe:c_basic.exe || exit /b 1
+          cl /nologo /W3 /std:c11 /I. examples\c\advanced.c /Fe:c_advanced.exe || exit /b 1
+          cl /nologo /W3 /std:c11 /I. examples\c\structs.c /Fe:c_structs.exe || exit /b 1
+          c_basic.exe || exit /b 1
+          c_advanced.exe || exit /b 1
+          c_structs.exe || exit /b 1
+
+      - name: Compile and run C++ examples with cl.exe
+        shell: cmd
+        run: |
+          cl /nologo /W3 /std:c++14 /EHsc /I. examples\cpp\basic.cpp /Fe:cpp_basic.exe || exit /b 1
+          cl /nologo /W3 /std:c++14 /EHsc /I. examples\cpp\hooks.cpp /Fe:cpp_hooks.exe || exit /b 1
+          cpp_basic.exe || exit /b 1
+          cpp_hooks.exe || exit /b 1
+
+  reports:
+    name: --junit / --json report content
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build c_basic
+        run: |
+          mkdir -p build
+          gcc -Wall -Wextra -std=c11 examples/c/basic.c -o build/c_basic
+
+      - name: Generate reports
+        run: ./build/c_basic --junit report.xml --json report.json
+
+      - name: Validate report structure
+        run: |
+          python3 - <<'EOF'
+          import json
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse("report.xml").getroot()
+          testcases = root.findall(".//testcase")
+          assert len(testcases) > 0, "JUnit report has no <testcase> entries"
+          for tc in testcases:
+              assert tc.get("name"), "a <testcase> is missing its name attribute"
+              assert tc.get("time") is not None, "a <testcase> is missing its time attribute"
+
+          data = json.load(open("report.json"))
+          assert "tests" in data and len(data["tests"]) > 0, "JSON report has no per-test entries"
+          for t in data["tests"]:
+              assert t["name"]
+              assert t["status"] in ("passed", "failed")
+
+          print(f"OK: {len(testcases)} testcases in JUnit report, {len(data['tests'])} entries in JSON report")
+          EOF
