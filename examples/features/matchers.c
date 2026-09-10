@@ -10,7 +10,12 @@ int main() {
 
         it("does not contain substring", {
             const char* str = "hello world";
-            expect(str).toContain("foo");
+            // Cest has no negated matcher yet (see TODO.md), so falling back
+            // to a plain C check plus toBeNull() to express "does not contain".
+            // Note the (void*) cast: cest_value() maps char*/const char* to a
+            // string value even when NULL, so toBeNull() needs a pointer type
+            // to match against (see the same pattern in examples/c/basic.c).
+            expect((void*)strstr(str, "foo")).toBeNull();
         });
     });
 

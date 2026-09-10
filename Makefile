@@ -89,7 +89,8 @@ EXAMPLES_MULTI = $(BUILD_DIR)/multi_test_suite
 
 # Feature Examples
 FEATURES = $(BUILD_DIR)/feat_hooks $(BUILD_DIR)/feat_fixtures $(BUILD_DIR)/feat_matchers \
-           $(BUILD_DIR)/feat_skip_only $(BUILD_DIR)/feat_leak_detection $(BUILD_DIR)/feat_prefix
+           $(BUILD_DIR)/feat_skip_only $(BUILD_DIR)/feat_leak_detection $(BUILD_DIR)/feat_prefix \
+           $(BUILD_DIR)/feat_thread_safety
 
 # Diagnostic Examples
 DIAGNOSTICS = $(BUILD_DIR)/diag_crash $(BUILD_DIR)/diag_hook_crash $(BUILD_DIR)/diag_fail
@@ -159,6 +160,9 @@ $(BUILD_DIR)/feat_leak_detection: examples/features/leak_detection.c cest.h
 $(BUILD_DIR)/feat_prefix: examples/features/prefix.c cest.h
 	$(CC) $(CFLAGS) -DCEST_PREFIX $< -o $@
 
+$(BUILD_DIR)/feat_thread_safety: examples/features/thread_safety.c cest.h
+	$(CC) $(CFLAGS) -pthread $< -o $@
+
 # --- Diagnostic Examples ---
 $(BUILD_DIR)/diag_crash: examples/diagnostics/crash.c cest.h
 	$(CC) $(CFLAGS) -DCEST_ENABLE_SIGNAL_HANDLER $< -o $@
@@ -170,23 +174,25 @@ $(BUILD_DIR)/diag_fail: examples/diagnostics/fail.c cest.h
 	$(CC) $(CFLAGS) $< -o $@
 
 # --- Runners ---
-run: all
-	@echo ">>> Running Core C Examples"
-	@$(BUILD_DIR)/c_basic
-	@$(BUILD_DIR)/c_advanced
-	@$(BUILD_DIR)/c_structs
-	@echo ""
-	@echo ">>> Running Multi-file Suite"
-	@$(BUILD_DIR)/multi_test_suite
-	@echo ""
-	@echo ">>> Running C++ Examples"
-	@$(BUILD_DIR)/cpp_basic
+# Every example here is expected to report all its tests as passing (exit
+# code 0 from cest_result()). The crash/fail examples under diagnostics/ are
+# intentionally NOT run here — they demonstrate signal handling and failure
+# reporting on purpose, so a non-zero/aborted exit from them is success, not
+# failure; run them individually if you want to see that behavior:
+#   ./build/diag_crash ; ./build/diag_hook_crash ; ./build/diag_fail
+RUNNABLE_EXAMPLES = $(EXAMPLES_C) $(EXAMPLES_CPP) $(EXAMPLES_MULTI) $(FEATURES)
 ifeq ($(OBJC_AVAILABLE),yes)
-	@echo ""
-	@echo ">>> Running Objective-C Examples"
-	@$(BUILD_DIR)/objc_basic
-	@$(BUILD_DIR)/objcpp_basic
+  RUNNABLE_EXAMPLES += $(EXAMPLES_OBJC) $(EXAMPLES_OBJCC)
 endif
+
+run: all
+	@status=0; \
+	for bin in $(RUNNABLE_EXAMPLES); do \
+		echo ""; \
+		echo ">>> $$bin"; \
+		$$bin || status=1; \
+	done; \
+	exit $$status
 
 clean:
 	rm -rf $(BUILD_DIR)
