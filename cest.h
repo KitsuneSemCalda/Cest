@@ -293,17 +293,16 @@ typedef int (*cest_match_fn)(cest_value_t actual, cest_value_t expected, int* di
 CEST_WEAK long long _cest_alloc_count = 0;
 CEST_WEAK long long _cest_free_count = 0;
 
-#define cest_malloc(size) _cest_malloc(size, __FILE__, __LINE__)
-#define cest_free(ptr) _cest_free(ptr, __FILE__, __LINE__)
+#define cest_malloc(size) _cest_malloc(size)
+#define cest_free(ptr) _cest_free(ptr)
 
-static inline void* _cest_malloc(size_t size, const char* file, int line) {
-    (void)file; (void)line;
-    _cest_alloc_count++;
-    return malloc(size);
+static inline void* _cest_malloc(size_t size) {
+    void* p = malloc(size);
+    if (p) _cest_alloc_count++;
+    return p;
 }
 
-static inline void _cest_free(void* ptr, const char* file, int line) {
-    (void)file; (void)line;
+static inline void _cest_free(void* ptr) {
     if (ptr) _cest_free_count++;
     free(ptr);
 }
