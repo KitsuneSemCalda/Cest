@@ -1,8 +1,8 @@
 #include "../../cest.h"
 
-#include "../../cest.h"
+int main(int argc, char* argv[]) {
+    cest_init(argc, argv);
 
-int main() {
     describe("Error Messages Test", {
         it("should show string diff", {
             expect("hello").toEqual("helo");

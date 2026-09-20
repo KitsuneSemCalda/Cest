@@ -11,6 +11,12 @@ Type "make -s all > /dev/null 2>&1 && clear"
 Enter
 Show
 
-Type "./build/c_basic"
+Type "./build/c_basic | tail -n 12"
 Enter
-Sleep 4s
+Sleep 3s
+
+Type "clear"
+Enter
+Type "./build/diag_fail"
+Enter
+Sleep 5s
