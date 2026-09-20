@@ -1,6 +1,6 @@
 # CI/CD Integration Guide
 
-Cest integrates seamlessly with continuous integration and deployment platforms through multiple output formats.
+Cest writes JUnit XML and JSON reports for CI platforms.
 
 ## Output Formats
 
@@ -259,11 +259,9 @@ valgrind --leak-check=full --gen-suppressions=all \
 Run specific tests for CI pipelines:
 
 ```bash
-# Run only tests matching pattern (requires CLI support)
-./test ".*String.*"
+# Run only tests whose name contains "String" (substring match, not regex)
+./test String
 
-# Compile with skip/only support
-gcc -DCEST_ENABLE_SKIP -o test examples/skip_only.c
 ./test --junit test-results.xml
 ```
 

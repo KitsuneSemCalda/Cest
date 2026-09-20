@@ -21,8 +21,8 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 
 | Language | Versions | Notes |
 |:---------|:--------|:------|
-| **C** | C89, C99, C11, C17, C23 | Full support, modern macros available |
-| **C++** | C++11, C++17, C++20, C++23 | Template-based type handling |
+| **C** | C11 or newer | `_Generic` is required |
+| **C++** | C++11 or newer | Overloads and templates |
 | **ObjC** | ARC & non-ARC | Nullability annotations supported |
 
 ### Compiler Compatibility
@@ -39,13 +39,10 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 - **Expressive syntax**: Fluent API inspired by Jest
 - **No dependencies**: No external libraries required
 - **Multi-language**: Works with C, C++, Objective-C, and Objective-C++
-- **Modern language support**: C11/C17/C23, C++17/C++20/C++23, ObjC with ARC
 - **Hooks support**: beforeAll/afterAll/beforeEach/afterEach
 - **Built-in benchmarking**: Simple performance measurement
-- **Sanitizer compatible**: Works seamlessly with ASan, TSan, MSan
+- **Sanitizer compatible**: Works with ASan, TSan, MSan
 - **Clean output**: Automatic compiler warning suppression
-- **Extensible**: Create custom matchers for domain-specific assertions
-- **Flexible execution**: Skip/Only modifiers for focused testing
 - **CI/CD ready**: JUnit XML and JSON output formats
 
 ## Features
@@ -54,8 +51,6 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 - **Describe/It syntax** - Familiar test structure like Jest
 - **Multiple matchers** - Equality, comparison, string, array operations
 - **Test hooks** - Setup/teardown with beforeAll, afterAll, beforeEach, afterEach
-- **Custom matchers** - Extend Cest with domain-specific assertions
-- **Test selection** - Skip/Only modifiers for focused development
 
 ### Quality & Safety
 - **Memory leak detection** - Integrated with ASan, MSan, Valgrind
@@ -82,8 +77,6 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 - [API Reference](./api.md)
 
 ### Advanced Topics
-- [Custom Matchers](./custom_matchers.md) - Extend with domain-specific assertions
-- [Skip and Only](./skip_only.md) - Test selection and focused debugging
 - [Leak Detection](./leak_detection.md) - Memory safety with ASan/Valgrind
 - [CI/CD Integration](./ci_integration.md) - Setup for GitHub Actions, GitLab, Jenkins
 

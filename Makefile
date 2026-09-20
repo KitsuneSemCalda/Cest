@@ -92,7 +92,7 @@ EXAMPLES_MULTI = $(BUILD_DIR)/multi_test_suite
 
 # Feature Examples
 FEATURES = $(BUILD_DIR)/feat_hooks $(BUILD_DIR)/feat_fixtures $(BUILD_DIR)/feat_matchers \
-           $(BUILD_DIR)/feat_skip_only $(BUILD_DIR)/feat_leak_detection $(BUILD_DIR)/feat_prefix \
+           $(BUILD_DIR)/feat_leak_detection $(BUILD_DIR)/feat_prefix \
            $(BUILD_DIR)/feat_thread_safety
 
 # Diagnostic Examples
@@ -152,9 +152,6 @@ $(BUILD_DIR)/feat_fixtures: examples/features/fixtures.c cest.h
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/feat_matchers: examples/features/matchers.c cest.h
-	$(CC) $(CFLAGS) $< -o $@
-
-$(BUILD_DIR)/feat_skip_only: examples/features/skip_only.c cest.h
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/feat_leak_detection: examples/features/leak_detection.c cest.h

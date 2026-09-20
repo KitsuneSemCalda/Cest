@@ -1,6 +1,6 @@
 # Memory Leak Detection
 
-Cest provides comprehensive memory leak detection through multiple mechanisms suitable for different development workflows.
+Cest detects leaks through sanitizers, Valgrind, or its own `cest_malloc`/`cest_free` counters.
 
 ## Detection Methods
 
@@ -10,7 +10,6 @@ Cest provides comprehensive memory leak detection through multiple mechanisms su
 | **Memory Sanitizer** | MSan | Medium | Uninitialized memory |
 | **Thread Sanitizer** | TSan | Medium | Multi-threaded code |
 | **Valgrind** | Memcheck | High (~10-50x) | Deep analysis |
-| **Built-in** | Cest native | None | Reference counting |
 
 ---
 

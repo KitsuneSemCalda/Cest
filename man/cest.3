@@ -1,4 +1,4 @@
-.Dd April 17, 2026
+.Dd September 20, 2026
 .Dt CEST 3
 .Os
 .Sh NAME
@@ -69,7 +69,23 @@ Checks if a value evaluates to false.
 .It Fn toContain "substring"
 Checks if a string contains another substring.
 .It Fn toBeCloseTo "value" "precision"
-Compares doubles with specific precision.
+Checks that an int or double is within
+.Fa precision
+of
+.Fa value .
+.It Fn toStartWith "prefix"
+Checks if a string starts with
+.Fa prefix .
+.It Fn toEndWith "suffix"
+Checks if a string ends with
+.Fa suffix .
+.It Fn toMatch "regex"
+Checks if a string matches a
+.Vt std::regex
+(C++ only).
+.It Fn toEqualArray "expected" "size_t len"
+Compares two arrays element by element. Use it after
+.Fn expect_array .
 .El
 .Sh HOOKS
 .Bl -bullet
@@ -105,11 +121,22 @@ Enables namespaced macros (e.g.,
 Disables colored terminal output (can also be passed as -DCEST_NO_COLORS to the compiler).
 .It Dv CEST_THREAD_SAFE
 Enables thread safety (requires pthreads).
+.It Dv CEST_NO_CLI
+Disables command-line parsing.
+.It Dv CEST_NO_HOOKS
+Disables
+.Fn beforeEach ,
+.Fn afterEach ,
+.Fn beforeAll
+and
+.Fn afterAll .
+.It Dv CEST_ENABLE_COVERAGE
+Enables gcov coverage integration.
 .El
 .Sh FUNCTIONS
 .Bl -tag -width "xxxxxxx"
 .It Fn cest_init "int argc" "char **argv"
-Initializes the framework with CLI arguments. Mandatory for test filtering and signal handlers.
+Initializes the framework with CLI arguments. Mandatory for test filtering and signal handlers. A bare argument runs only tests whose name contains it (substring match). \fB--junit\fR \fIfile\fR and \fB--json\fR \fIfile\fR write reports.
 .It Fn cest_result
 Returns 0 if all tests passed, 1 otherwise. Also prints the final summary.
 .El

@@ -21,8 +21,8 @@ Cest é um framework de testes leve e **header-only** para C e linguagens relaci
 
 | Linguagem | Versões | Notas |
 |---------|:-------|:------|
-| **C** | C89, C99, C11, C17, C23 | Suporte completo, macros modernos disponíveis |
-| **C++** | C++11, C++17, C++20, C++23 | Type handling baseado em templates |
+| **C** | C11 ou superior | `_Generic` é obrigatório |
+| **C++** | C++11 ou superior | Overloads e templates |
 | **ObjC** | ARC & non-ARC | Anotações de nullability suportadas |
 
 ### Compatibilidade de Compiladores
@@ -44,8 +44,6 @@ Cest é um framework de testes leve e **header-only** para C e linguagens relaci
 - **Benchmarking integrado**: Medição simples de performance
 - **Compatível com sanitizers**: Funciona perfeitamente com ASan, TSan, MSan
 - **Saída limpa**: Supressão automática de warnings do compilador
-- **Extensível**: Crie matchers customizados para asserções específicas de domínio
-- **Execução flexível**: Modificadores Skip/Only para testes focados
 - **Pronto para CI/CD**: Formatos de saída JUnit XML e JSON
 
 ## Funcionalidades
@@ -55,7 +53,6 @@ Cest é um framework de testes leve e **header-only** para C e linguagens relaci
 - **Múltiplos matchers** - Operações de igualdade, comparação, string, array
 - **Hooks de teste** - Setup/teardown com beforeAll, afterAll, beforeEach, afterEach
 - **Matchers customizados** - Estenda Cest com asserções específicas de domínio
-- **Seleção de testes** - Modificadores Skip/Only para desenvolvimento focado
 
 ### Qualidade e Segurança
 - **Detecção de vazamento de memória** - Integração com ASan, MSan, Valgrind
@@ -82,8 +79,6 @@ Cest é um framework de testes leve e **header-only** para C e linguagens relaci
 - [Referência de API](./api.md)
 
 ### Tópicos Avançados
-- [Matchers Customizados](./custom_matchers.md) - Estenda com asserções específicas de domínio
-- [Skip e Only](./skip_only.md) - Seleção de testes e debug focado
 - [Detecção de Vazamentos](./leak_detection.md) - Segurança de memória com ASan/Valgrind
 - [Integração CI/CD](./ci_integration.md) - Setup para GitHub Actions, GitLab, Jenkins
 

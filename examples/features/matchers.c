@@ -1,6 +1,11 @@
 #include "../../cest.h"
 #include <regex.h>
 
+// Initializers contain commas, so they live outside the describe() macro.
+static int same_a[3] = {1, 2, 3};
+static int same_b[3] = {1, 2, 3};
+static int diff[3]   = {1, 2, 4};
+
 int main() {
     describe("String Matchers", {
         it("contains substring", {
@@ -30,6 +35,20 @@ int main() {
 
         it("checks close to", {
             expect(3.14159).toBeCloseTo(3.14, 0.01);
+        });
+
+        it("checks close to with an integer actual", {
+            expect(5).toBeCloseTo(5.0, 0.1);
+        });
+    });
+
+    describe("Array Matchers", {
+        it("equal int arrays match", {
+            expect_array(same_a, 3).toEqualArray(same_b, 3);
+        });
+
+        it("arrays differing past the first bytes do not match", {
+            expect(match_eq(cest_array(same_a, 3), cest_array(diff, 3), NULL)).toBe(0);
         });
     });
 

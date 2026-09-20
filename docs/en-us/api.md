@@ -212,8 +212,6 @@ Define these **before** including `cest.h`:
 | `CEST_THREAD_SAFE` | Enable thread safety (requires pthreads) |
 | `CEST_NO_CLI` | Disable CLI argument parsing |
 | `CEST_NO_HOOKS` | Disable beforeEach/afterEach hooks |
-| `CEST_ENABLE_SKIP` | Enable skip/only test modifiers |
-| `CEST_ENABLE_FORK` | Enable test isolation via `fork()` |
 | `CEST_ENABLE_COVERAGE` | Enable gcov coverage integration |
 | `CEST_ENABLE_LEAK_DETECTION` | Enable memory leak detection |
 | `CEST_ENABLE_SIGNAL_HANDLER` | Enable crash diagnostics (SIGSEGV, SIGABRT, etc.) |
@@ -284,7 +282,6 @@ int main(int argc, char* argv[]) {
 }
 ```
 
-> **Note:** `CEST_ENABLE_SIGNAL_HANDLER` is complementary to `CEST_ENABLE_FORK`. Fork provides full test isolation; the signal handler provides lightweight crash diagnostics when fork is not available or desired.
 
 ### Namespaced Macros (CEST_PREFIX)
 

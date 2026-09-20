@@ -24,8 +24,8 @@ Cest is a lightweight, **header-only** testing framework for C and related langu
 
 | Language | Versions |
 |:---------|:---------|
-| **C** | C11, C17, C23 |
-| **C++** | C++17, C++20, C++23 |
+| **C** | C11 or newer |
+| **C++** | C++11 or newer |
 | **ObjC** | ARC & non-ARC |
 
 ---
@@ -163,7 +163,6 @@ Run specific tests from command line:
 
 - **Header-Only**: Just include `cest.h` in your project.
 - **Multi-Language**: Native support for C, C++, Objective-C, and Objective-C++.
-- **Modern Language Support**: C11/C17/C23, C++17/C++20/C++23, ObjC with ARC.
 - **No Dependencies**: Zero external libraries (not even `-lm`).
 - **Modern Syntax**: Uses `describe`, `it`, and `expect` for readable tests.
 - **Colorized Output**: Instant visual feedback in your terminal.
@@ -172,7 +171,7 @@ Run specific tests from command line:
 - **Auto Grouping**: Use `describe_file()` to automatically group tests by source file.
 - **Hooks Support**: `beforeAll`, `afterAll`, `beforeEach`, `afterEach` for setup/cleanup.
 - **Built-in Benchmarking**: Simple performance measurement with `bench` macro.
-- **Sanitizer Compatible**: Works seamlessly with ASan, TSan, MSan.
+- **Sanitizer Compatible**: Works with ASan, TSan, MSan.
 - **Clean Output**: Automatic compiler warning suppression.
 
 ---

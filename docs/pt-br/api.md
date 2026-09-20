@@ -226,8 +226,6 @@ Defina estas **antes** de incluir `cest.h`:
 | `CEST_THREAD_SAFE` | Habilita thread safety (requer pthreads) |
 | `CEST_NO_CLI` | Desabilita parsing de argumentos CLI |
 | `CEST_NO_HOOKS` | Desabilita hooks beforeEach/afterEach |
-| `CEST_ENABLE_SKIP` | Habilita modificadores skip/only |
-| `CEST_ENABLE_FORK` | Habilita isolamento de testes via `fork()` |
 | `CEST_ENABLE_COVERAGE` | Habilita integração com gcov |
 | `CEST_ENABLE_LEAK_DETECTION` | Habilita detecção de memory leak |
 | `CEST_ENABLE_SIGNAL_HANDLER` | Habilita diagnóstico de crash (SIGSEGV, SIGABRT, etc.) |
@@ -298,7 +296,6 @@ int main(int argc, char* argv[]) {
 }
 ```
 
-> **Nota:** `CEST_ENABLE_SIGNAL_HANDLER` é complementar ao `CEST_ENABLE_FORK`. Fork oferece isolamento completo; o signal handler oferece diagnósticos leves quando fork não está disponível.
 
 ### Macros com Prefixo (CEST_PREFIX)
 
