@@ -210,7 +210,7 @@ make clean        # Clean build directory
 Detailed documentation is available in multiple languages:
 
 - [Brazilian Portuguese (docs/pt-br)](docs/pt-br/overview.md)
-- [English (docs/us-en)](docs/us-en/overview.md)
+- [English (docs/en-us)](docs/en-us/overview.md)
 
 ---
 

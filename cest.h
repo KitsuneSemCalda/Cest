@@ -422,18 +422,20 @@ CEST_WEAK clock_t _cest_suite_start_time = 0;
 typedef struct {
     const char* name;
     double time;
-    int failed; // 1 if at least one assertion failed during this test
+    int failed;  // 1 if at least one assertion failed during this test
+    int skipped; // 1 if this test was filtered out and never ran
 } cest_test_record_t;
 
-CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = { {NULL, 0, 0} };
+CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = { {NULL, 0, 0, 0} };
 CEST_WEAK int _cest_test_record_count = 0;
 
-static inline void _cest_record_test(const char* name, double time, int failed) {
+static inline void _cest_record_test(const char* name, double time, int failed, int skipped) {
     CEST_LOCK();
     if (_cest_test_record_count < CEST_MAX_TEST_RECORDS) {
         _cest_test_records[_cest_test_record_count].name = name;
         _cest_test_records[_cest_test_record_count].time = time;
         _cest_test_records[_cest_test_record_count].failed = failed;
+        _cest_test_records[_cest_test_record_count].skipped = skipped;
         _cest_test_record_count++;
     }
     CEST_UNLOCK();
@@ -499,7 +501,10 @@ static inline void _cest_fputs_json_escaped(const char* s, FILE* f) {
 // ============================================================================
 static inline cest_value_t cest_int(long long v) { cest_value_t cv; cv.type = CEST_TYPE_INT; cv.as.i = v; cv.len = 0; return cv; }
 static inline cest_value_t cest_double(double v) { cest_value_t cv; cv.type = CEST_TYPE_DOUBLE; cv.as.d = v; cv.len = 0; return cv; }
-static inline cest_value_t cest_str(const char* v) { cest_value_t cv; cv.type = CEST_TYPE_STR; cv.as.s = v ? v : "NULL"; cv.len = 0; return cv; }
+// Keeps a NULL char*/const char* as an actual NULL instead of the literal
+// string "NULL", so toBeNull() and the null-safe matchers below can tell a
+// missing string apart from the four-character text "NULL".
+static inline cest_value_t cest_str(const char* v) { cest_value_t cv; cv.type = CEST_TYPE_STR; cv.as.s = v; cv.len = 0; return cv; }
 static inline cest_value_t cest_ptr(const void* v) { cest_value_t cv; cv.type = CEST_TYPE_PTR; cv.as.p = v; cv.len = 0; return cv; }
 static inline cest_value_t cest_bool(bool v) { cest_value_t cv; cv.type = CEST_TYPE_BOOL; cv.as.b = v; cv.len = 0; return cv; }
 static inline cest_value_t _cest_array(const void* v, int len, size_t elem_size) { cest_value_t cv; cv.type = CEST_TYPE_ARRAY; cv.as.p = v; cv.len = len; cv.elem_size = elem_size; return cv; }
@@ -571,7 +576,10 @@ static inline void _cest_print_value(cest_value_t v) {
     switch(v.type) {
         case CEST_TYPE_INT: printf("(int: %lld)", v.as.i); break;
         case CEST_TYPE_DOUBLE: printf("(double: %g)", v.as.d); break;
-        case CEST_TYPE_STR: printf("(string: \"%s\")", v.as.s); break;
+        case CEST_TYPE_STR:
+            if (v.as.s) printf("(string: \"%s\")", v.as.s);
+            else printf("(string: null)");
+            break;
         case CEST_TYPE_PTR: printf("(pointer: %p)", v.as.p); break;
         case CEST_TYPE_BOOL: printf("(bool: %s)", v.as.b ? "true" : "false"); break;
         case CEST_TYPE_ARRAY: printf("(array[%d]: %p)", v.len, v.as.p); break;
@@ -626,6 +634,13 @@ static inline void _cest_assert_impl(cest_value_t expected, cest_match_fn match,
 static inline int match_eq(cest_value_t a, cest_value_t b, int* diff_pos) {
     if (diff_pos) *diff_pos = -1;
     if (a.type != b.type) {
+        // toBeNull() builds its expectation as cest_ptr(NULL); a NULL
+        // char*/const char* actual represents the same "no value" and must
+        // be able to match it even though the stored types differ.
+        if ((a.type == CEST_TYPE_STR && a.as.s == NULL && b.type == CEST_TYPE_PTR && b.as.p == NULL) ||
+            (b.type == CEST_TYPE_STR && b.as.s == NULL && a.type == CEST_TYPE_PTR && a.as.p == NULL)) {
+            return 1;
+        }
 #ifdef __OBJC__
         if ((a.type == CEST_TYPE_PTR && b.type == CEST_TYPE_OBJC_ID) ||
             (a.type == CEST_TYPE_OBJC_ID && b.type == CEST_TYPE_PTR)) {
@@ -646,6 +661,7 @@ static inline int match_eq(cest_value_t a, cest_value_t b, int* diff_pos) {
         case CEST_TYPE_INT: return a.as.i == b.as.i;
         case CEST_TYPE_DOUBLE: return _CEST_ABS(a.as.d - b.as.d) < 0.000001;
         case CEST_TYPE_STR: {
+            if (a.as.s == NULL || b.as.s == NULL) return a.as.s == b.as.s;
             if (strcmp(a.as.s, b.as.s) == 0) return 1;
             if (diff_pos) {
                 const char* p1 = a.as.s;
@@ -700,6 +716,7 @@ static inline int match_in_range(cest_value_t a, cest_value_t min, cest_value_t 
 static inline int match_start_with(cest_value_t a, cest_value_t b, int* diff_pos) {
     (void)diff_pos;
     if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) {
+        if (a.as.s == NULL || b.as.s == NULL) return 0;
         return strncmp(a.as.s, b.as.s, strlen(b.as.s)) == 0;
     }
     return 0;
@@ -708,6 +725,7 @@ static inline int match_start_with(cest_value_t a, cest_value_t b, int* diff_pos
 static inline int match_end_with(cest_value_t a, cest_value_t b, int* diff_pos) {
     (void)diff_pos;
     if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) {
+        if (a.as.s == NULL || b.as.s == NULL) return 0;
         size_t len_a = strlen(a.as.s);
         size_t len_b = strlen(b.as.s);
         if (len_b > len_a) return 0;
@@ -718,7 +736,10 @@ static inline int match_end_with(cest_value_t a, cest_value_t b, int* diff_pos) 
 
 static inline int match_contain(cest_value_t a, cest_value_t b, int* diff_pos) {
     (void)diff_pos;
-    if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) return strstr(a.as.s, b.as.s) != NULL;
+    if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_STR) {
+        if (a.as.s == NULL || b.as.s == NULL) return 0;
+        return strstr(a.as.s, b.as.s) != NULL;
+    }
     return 0;
 }
 
@@ -726,6 +747,7 @@ static inline int match_regex(cest_value_t a, cest_value_t b, int* diff_pos) {
 #ifdef __cplusplus
     (void)diff_pos;
     if (a.type == CEST_TYPE_STR && b.type == CEST_TYPE_REGEX) {
+        if (a.as.s == NULL) return 0;
         return std::regex_match(a.as.s, *b.as.re);
     }
 #else
@@ -898,6 +920,7 @@ static clock_t _cest_test_start_time CEST_UNUSED = 0;
     if (!_cest_should_run_test(name)) { \
         printf("  " CEST_CLR_DIM "○ %s (filtered)" CEST_CLR_RESET "\n", name); \
         CEST_LOCK(); _cest_global_stats.skipped++; CEST_UNLOCK(); \
+        _cest_record_test(name, 0.0, 0, 1); \
     } else { \
         _cest_current_test_name = name; \
         _CEST_SIGNAL_SET_TEST(name); \
@@ -909,7 +932,7 @@ static clock_t _cest_test_start_time CEST_UNUSED = 0;
         block; \
         _CEST_RUN_AFTER_EACH(); \
         fflush(stdout); \
-        _cest_record_test(name, (double)(clock() - _cest_test_start_time) / CLOCKS_PER_SEC, _cest_global_stats.failed > _cest_failed_before); \
+        _cest_record_test(name, (double)(clock() - _cest_test_start_time) / CLOCKS_PER_SEC, _cest_global_stats.failed > _cest_failed_before, 0); \
     } \
 } while (0)
 
@@ -979,17 +1002,27 @@ static inline void _cest_write_junit(void) {
     if (!_cest_junit_output) return;
     FILE* f = fopen(_cest_junit_output, "w");
     if (!f) return;
-    int tests = _cest_global_stats.passed + _cest_global_stats.failed;
+    // tests/failures must count testcase elements (one per it()/test(), plus
+    // one per filtered-out test), not assertions: a test can hold several
+    // expect() calls, and _cest_global_stats.passed/failed count those, not
+    // the tests that contain them.
+    int tests = _cest_test_record_count;
+    int failures = 0;
+    for (int i = 0; i < _cest_test_record_count; i++) {
+        if (_cest_test_records[i].failed) failures++;
+    }
     fprintf(f, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     fprintf(f, "<testsuites tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n",
-            tests, _cest_global_stats.failed, _cest_global_stats.skipped, _cest_total_time);
+            tests, failures, _cest_global_stats.skipped, _cest_total_time);
     fprintf(f, "  <testsuite name=\"Cest\" tests=\"%d\" failures=\"%d\" skipped=\"%d\" time=\"%.3f\">\n",
-            tests, _cest_global_stats.failed, _cest_global_stats.skipped, _cest_total_time);
+            tests, failures, _cest_global_stats.skipped, _cest_total_time);
     for (int i = 0; i < _cest_test_record_count; i++) {
         fprintf(f, "    <testcase name=\"");
         _cest_fputs_xml_escaped(_cest_test_records[i].name, f);
         fprintf(f, "\" time=\"%.6f\">", _cest_test_records[i].time);
-        if (_cest_test_records[i].failed) {
+        if (_cest_test_records[i].skipped) {
+            fprintf(f, "<skipped/>");
+        } else if (_cest_test_records[i].failed) {
             fprintf(f, "<failure message=\"assertion failed\"></failure>");
         }
         fprintf(f, "</testcase>\n");
@@ -1016,7 +1049,7 @@ static inline void _cest_write_json(void) {
         _cest_fputs_json_escaped(_cest_test_records[i].name, f);
         fprintf(f, "\", \"time\": %.6f, \"status\": \"%s\"}%s\n",
                 _cest_test_records[i].time,
-                _cest_test_records[i].failed ? "failed" : "passed",
+                _cest_test_records[i].skipped ? "skipped" : (_cest_test_records[i].failed ? "failed" : "passed"),
                 (i + 1 < _cest_test_record_count) ? "," : "");
     }
     fprintf(f, "  ]\n");

@@ -3,3 +3,4 @@
 *.cpp linguist-vendored=true
 *.c linguist-vendored=true
 Makefile linguist-vendored=false
+cest.h linguist-vendored=false
