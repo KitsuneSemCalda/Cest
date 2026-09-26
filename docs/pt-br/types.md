@@ -87,7 +87,10 @@ typedef struct {
     int failed;   // Número de testes falhou
 } cest_stats_t;
 
-// Variável global fraca (compartilhada entre unidades de compilação)
+// Preferido: acessor somente-leitura (compartilhado entre unidades de compilação)
+cest_stats_t cest_stats(void);
+
+// Variável global fraca, mantida por compatibilidade; prefira cest_stats()
 extern cest_stats_t _cest_global_stats;
 ```
 

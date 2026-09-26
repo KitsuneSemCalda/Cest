@@ -1,4 +1,6 @@
 #include "../../cest.h"
+#include <limits.h>
+#include <math.h>
 #include <regex.h>
 
 // Initializers contain commas, so they live outside the describe() macro.
@@ -46,6 +48,36 @@ int main() {
 
         it("checks close to with an integer actual", {
             expect(5).toBeCloseTo(5.0, 0.1);
+        });
+
+        it("NaN is never close to any finite value, per IEEE 754", {
+            // Any comparison against NaN is false, including `NaN < precision`,
+            // so toBeCloseTo must report NaN as failing to match a finite
+            // target rather than accidentally treating the always-false
+            // comparison as a pass.
+            double actual = NAN;
+            expect(match_eq(cest_value(actual), cest_value(0.0), NULL)).toBe(0);
+        });
+
+        it("NaN does not equal itself, per IEEE 754", {
+            double a = NAN;
+            double b = NAN;
+            expect(match_eq(cest_value(a), cest_value(b), NULL)).toBe(0);
+        });
+
+        it("compares INT_MAX and INT_MIN without overflowing", {
+            expect((long long)INT_MAX).toBeGreaterThan((long long)INT_MIN);
+            expect((long long)INT_MIN).toBeLessThan((long long)INT_MAX);
+        });
+
+        it("compares LLONG_MAX and LLONG_MIN without overflowing", {
+            // match_gt/match_lt compare a.as.i/b.as.i directly (no
+            // subtraction), so the widest representable range must compare
+            // correctly instead of wrapping around.
+            expect(LLONG_MAX).toBeGreaterThan(LLONG_MIN);
+            expect(LLONG_MIN).toBeLessThan(LLONG_MAX);
+            expect(LLONG_MAX).toEqual(LLONG_MAX);
+            expect(LLONG_MIN).toEqual(LLONG_MIN);
         });
     });
 

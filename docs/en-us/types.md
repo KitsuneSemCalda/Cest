@@ -87,7 +87,10 @@ typedef struct {
     int failed;   // Number of failed tests
 } cest_stats_t;
 
-// Weak global variable (shared across compilation units)
+// Preferred: read-only accessor (shared across compilation units)
+cest_stats_t cest_stats(void);
+
+// Weak global variable, kept for backward compatibility; prefer cest_stats()
 extern cest_stats_t _cest_global_stats;
 ```
 

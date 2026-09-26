@@ -406,6 +406,15 @@ typedef struct {
 } cest_stats_t;
 
 CEST_WEAK cest_stats_t _cest_global_stats = {0, 0, 0, NULL};
+
+// Public, prefixed accessor for the shared stats counters. _cest_global_stats
+// was documented as the public way to read pass/fail/skip counts despite its
+// leading underscore (an internal-naming convention elsewhere in this file),
+// which is inconsistent and makes it look like an implementation detail
+// that should not be touched directly. Prefer cest_stats() in new code;
+// _cest_global_stats is kept, unchanged, for backward compatibility.
+static inline cest_stats_t cest_stats(void) { return _cest_global_stats; }
+
 CEST_WEAK const char* _cest_current_test_name = NULL;
 CEST_WEAK const char* _cest_junit_output = NULL;
 CEST_WEAK const char* _cest_json_output = NULL;

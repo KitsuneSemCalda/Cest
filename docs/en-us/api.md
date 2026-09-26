@@ -310,17 +310,22 @@ The short-form macros (`describe`, `test`, `expect`, etc.) remain available rega
 
 ## Global Variables
 
-### _cest_global_stats
+### cest_stats()
 
-Global test statistics (shared across TUs).
+Returns a copy of the shared test statistics (passed/failed/skipped counts, shared across TUs).
 
 ```c
-extern cest_stats_t _cest_global_stats;
+cest_stats_t cest_stats(void);
 
 // Manual access
-printf("Passed: %d, Failed: %d\n", 
-    _cest_global_stats.passed, 
-    _cest_global_stats.failed);
+cest_stats_t stats = cest_stats();
+printf("Passed: %d, Failed: %d\n", stats.passed, stats.failed);
+```
+
+`_cest_global_stats` (the underlying weak global) is still available for backward compatibility, but is an internal name — prefer `cest_stats()` in new code.
+
+```c
+extern cest_stats_t _cest_global_stats; // deprecated: use cest_stats()
 ```
 
 ---

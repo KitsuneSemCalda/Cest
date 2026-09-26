@@ -324,17 +324,22 @@ Os macros curtos (`describe`, `test`, `expect`, etc.) continuam disponíveis ind
 
 ## Variáveis Globais
 
-### _cest_global_stats
+### cest_stats()
 
-Estatísticas globais de testes (compartilhada entre TUs).
+Retorna uma cópia das estatísticas globais de testes (passed/failed/skipped, compartilhadas entre TUs).
 
 ```c
-extern cest_stats_t _cest_global_stats;
+cest_stats_t cest_stats(void);
 
 // Acesso manual
-printf("Passed: %d, Failed: %d\n", 
-    _cest_global_stats.passed, 
-    _cest_global_stats.failed);
+cest_stats_t stats = cest_stats();
+printf("Passed: %d, Failed: %d\n", stats.passed, stats.failed);
+```
+
+`_cest_global_stats` (a variável global fraca subjacente) continua disponível por compatibilidade, mas é um nome interno — prefira `cest_stats()` em código novo.
+
+```c
+extern cest_stats_t _cest_global_stats; // obsoleto: use cest_stats()
 ```
 
 ---
