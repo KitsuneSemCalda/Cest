@@ -1,8 +1,12 @@
 #ifndef CEST_H_INCLUDED
 #define CEST_H_INCLUDED
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
+#ifndef _POSIX_C_SOURCE
+#  define _POSIX_C_SOURCE 200809L
+#endif
+#ifndef _DEFAULT_SOURCE
+#  define _DEFAULT_SOURCE
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -19,6 +23,16 @@
 
 #ifdef __OBJC__
 #import <objc/objc.h>
+# if defined(__clang__)
+#  if __has_feature(objc_arc)
+#   define _CEST_OBJC_BORROWED __unsafe_unretained
+#   define _CEST_OBJC_POINTER(value) ((__bridge const void *)(value))
+#  endif
+# endif
+# ifndef _CEST_OBJC_BORROWED
+#  define _CEST_OBJC_BORROWED
+#  define _CEST_OBJC_POINTER(value) ((const void *)(value))
+# endif
 #endif
 
 #ifdef __cplusplus
@@ -274,7 +288,9 @@ typedef struct {
         bool b;
         unsigned char u8;
 #ifdef __OBJC__
-        id obj;
+        // Assertion values are synchronous borrows, not object owners.
+        // A strong id would make this union non-trivial under ARC.
+        id _CEST_OBJC_BORROWED obj;
 #endif
 #ifdef __cplusplus
         std::regex* re;
@@ -541,6 +557,8 @@ static inline cest_value_t cest_value(T* v) { return cest_ptr((const void*)v); }
 #define cest_value(x) \
     _Generic((x), \
         _Bool: cest_bool, \
+        signed char: cest_int, \
+        unsigned char: cest_int, \
         int: cest_int, \
         long: cest_int, \
         long long: cest_int, \
@@ -593,7 +611,7 @@ static inline void _cest_print_value(cest_value_t v) {
         case CEST_TYPE_BOOL: printf("(bool: %s)", v.as.b ? "true" : "false"); break;
         case CEST_TYPE_ARRAY: printf("(array[%d]: %p)", v.len, v.as.p); break;
 #ifdef __OBJC__
-        case CEST_TYPE_OBJC_ID: printf("(id: %p)", (void*)v.as.obj); break;
+        case CEST_TYPE_OBJC_ID: printf("(id: %p)", _CEST_OBJC_POINTER(v.as.obj)); break;
 #else
         case CEST_TYPE_OBJC_ID: printf("(id: %p)", v.as.p); break;
 #endif
@@ -655,12 +673,12 @@ static inline int match_eq(cest_value_t a, cest_value_t b, int* diff_pos) {
             (a.type == CEST_TYPE_OBJC_ID && b.type == CEST_TYPE_PTR)) {
             const void *p = a.type == CEST_TYPE_PTR ? a.as.p : b.as.p;
             id obj = a.type == CEST_TYPE_OBJC_ID ? a.as.obj : b.as.obj;
-            return p == (const void*)obj;
+            return p == _CEST_OBJC_POINTER(obj);
         }
         if ((a.type == CEST_TYPE_PTR || a.type == CEST_TYPE_OBJC_ID) && 
             (b.type == CEST_TYPE_PTR || b.type == CEST_TYPE_OBJC_ID)) {
-            const void *p1 = a.type == CEST_TYPE_PTR ? a.as.p : (const void*)a.as.obj;
-            const void *p2 = b.type == CEST_TYPE_PTR ? b.as.p : (const void*)b.as.obj;
+            const void *p1 = a.type == CEST_TYPE_PTR ? a.as.p : _CEST_OBJC_POINTER(a.as.obj);
+            const void *p2 = b.type == CEST_TYPE_PTR ? b.as.p : _CEST_OBJC_POINTER(b.as.obj);
             return p1 == p2;
         }
 #endif

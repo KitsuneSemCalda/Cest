@@ -71,6 +71,29 @@ jobs:
       - name: make run
         run: make run
 
+  objc-arc:
+    name: Objective-C ARC and MRC regression (native Apple runtime)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile runtime fixture without ARC
+        run: clang -Wall -Wextra -Werror -fno-objc-arc -c tests/objc_arc_probe.m -o /tmp/cest_probe.o
+      - name: Run Objective-C and Objective-C++ in both ownership modes
+        run: |
+          for mode in -fobjc-arc -fno-objc-arc; do
+            for language in objective-c objective-c++; do
+              compiler=clang
+              if [ "$language" = objective-c++ ]; then compiler=clang++; fi
+              "$compiler" -Wall -Wextra -Werror "$mode" -x "$language" tests/objc_arc.m \
+                -x none /tmp/cest_probe.o -framework Foundation -o /tmp/cest_arc
+              /tmp/cest_arc
+              code=0
+              /tmp/cest_arc --negative > /tmp/cest_arc_negative.log 2>&1 || code=$?
+              test "$code" -eq 1
+              grep 'Received (id:' /tmp/cest_arc_negative.log
+            done
+          done
+
   msvc:
     name: msvc (cl.exe)
     runs-on: windows-latest
