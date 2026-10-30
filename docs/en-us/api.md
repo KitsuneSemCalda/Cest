@@ -406,3 +406,11 @@ Output:
   ● String
     ✓ compares
 ```
+
+### Objective-C ownership in assertions
+
+Object assertion values borrow the object for the synchronous assertion; Cest
+does not retain the last object in its global assertion context. Keep the object
+alive through the assertion expression. ARC and manual-reference-counting builds
+are supported, including Objective-C++. The regression sources in `tests/objc_arc*`
+exercise nil, BOOL, pointer comparison, failure formatting and ARC deallocation.
