@@ -217,3 +217,13 @@ Detailed documentation is available in multiple languages:
 ## License
 
 This project is licensed under the [BSD-3 Clause License](LICENSE).
+
+### Test counts and assertion counts
+
+The console summary reports test cases (`test` / `it`) separately from
+assertions (`expect`). A loop containing 100 expectations inside one test
+counts as one test and 100 assertions. A test fails if any of its assertions
+fails; a filtered test is skipped, and an executed test with no assertions
+passes. The existing `cest_stats().passed` and `.failed` fields continue to
+count assertions for compatibility. Summary test totals remain accurate even
+when `CEST_MAX_TEST_RECORDS` limits the stored report records.
