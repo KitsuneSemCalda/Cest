@@ -192,7 +192,14 @@ ifeq ($(OBJC_AVAILABLE),yes)
   RUNNABLE_EXAMPLES += $(EXAMPLES_OBJC) $(EXAMPLES_OBJCC)
 endif
 
-run: all
+$(BUILD_DIR)/test_summary: tests/summary.c cest.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DCEST_MAX_TEST_RECORDS=1 $< -o $@
+
+.PHONY: test-summary
+test-summary: $(BUILD_DIR)/test_summary
+	sh tests/summary.sh $<
+
+run: all test-summary
 	@status=0; \
 	for bin in $(RUNNABLE_EXAMPLES); do \
 		echo ""; \

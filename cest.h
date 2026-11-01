@@ -453,9 +453,16 @@ typedef struct {
 
 CEST_WEAK cest_test_record_t _cest_test_records[CEST_MAX_TEST_RECORDS] = { {NULL, 0, 0, 0} };
 CEST_WEAK int _cest_test_record_count = 0;
+// Keep totals independent of the bounded report-record buffer.
+CEST_WEAK int _cest_tests_passed = 0;
+CEST_WEAK int _cest_tests_failed = 0;
 
 static inline void _cest_record_test(const char* name, double time, int failed, int skipped) {
     CEST_LOCK();
+    if (!skipped) {
+        if (failed) _cest_tests_failed++;
+        else _cest_tests_passed++;
+    }
     if (_cest_test_record_count < CEST_MAX_TEST_RECORDS) {
         _cest_test_records[_cest_test_record_count].name = name;
         _cest_test_records[_cest_test_record_count].time = time;
@@ -1122,16 +1129,10 @@ static inline int cest_result(void) {
     _cest_total_time = (double)(clock() - _cest_suite_start_time) / CLOCKS_PER_SEC;
     
     printf("\n" CEST_CLR_BOLD "Test Suites Summary:" CEST_CLR_RESET "\n");
-    if (_cest_global_stats.failed == 0) {
-        printf("  " CEST_CLR_GREEN "All %d tests passed!" CEST_CLR_RESET, _cest_global_stats.passed);
-        if (_cest_global_stats.skipped > 0) printf(" (" CEST_CLR_YELLOW "%d skipped" CEST_CLR_RESET ")", _cest_global_stats.skipped);
-        printf("\n");
-    } else {
-        printf("  " CEST_CLR_GREEN "Passed: %d" CEST_CLR_RESET, _cest_global_stats.passed);
-        printf("\n  " CEST_CLR_RED "Failed: %d" CEST_CLR_RESET, _cest_global_stats.failed);
-        if (_cest_global_stats.skipped > 0) printf("\n  " CEST_CLR_YELLOW "Skipped: %d" CEST_CLR_RESET, _cest_global_stats.skipped);
-        printf("\n");
-    }
+    printf("  Tests: %d passed, %d failed, %d skipped\n",
+           _cest_tests_passed, _cest_tests_failed, _cest_global_stats.skipped);
+    printf("  Assertions: %d passed, %d failed\n",
+           _cest_global_stats.passed, _cest_global_stats.failed);
     
 #ifdef CEST_ENABLE_LEAK_DETECTION
     printf("\n" CEST_CLR_BOLD "Memory:" CEST_CLR_RESET "\n");
